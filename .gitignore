@@ -1,0 +1,30 @@
+# Python / Backend
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+env/
+*.sqlite3
+*.log
+
+# FastAPI / Uvicorn
+*.db
+*.cache
+f1_cache/
+
+# Node / Frontend
+node_modules/
+
+# Elm
+elm-stuff/
+main.js
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/

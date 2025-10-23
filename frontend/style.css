@@ -1,0 +1,21 @@
+body {
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(to bottom right, #7f1d1d, #000000, #1f2937);
+    min-height: 100vh;
+}
+
+#elm {
+    min-height: 100vh;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes dots {
+    0% { opacity: 0; }
+    50% { opacity: 1; }
+    100% { opacity: 0; }
+}

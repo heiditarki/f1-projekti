@@ -5,12 +5,18 @@
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-      "start": "elm-live src/Main.elm --open --port=8080 -- --output=main.js --debug"
+    "start": "elm-live src/Main.elm --pushstate --open --port=3000 -- --output=main.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
+  "dependencies": {
+    "body-parser": "^2.2.0",
+    "meow": "^14.0.0",
+    "qs": "^6.14.0",
+    "trim-newlines": "^5.0.0"
+  },
   "devDependencies": {
     "elm-live": "^4.0.2"
   }
