@@ -74,3 +74,10 @@ yarn-error.log*
 tmp/
 temp/
 *.tmp
+
+# Elm review configuration
+frontend/review/
+
+# Cache and temporary files
+*.cache
+.cache/

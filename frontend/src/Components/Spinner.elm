@@ -1,4 +1,4 @@
-module Components.Spinner exposing (view, viewWithText)
+module Components.Spinner exposing (viewWithText)
 
 import Css exposing (..)
 import Html.Styled as Html exposing (Html)

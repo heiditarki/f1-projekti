@@ -1,51 +1,50 @@
-## Backend Setup (FastF1 + FastAPI)
+# F1 Project
 
-1. **Navigate to backend folder:**
+A Formula 1 data visualization application with Elm frontend and FastAPI
+backend.
+
+## Quick Start
+
+**Recommended:** Use the development script to start both servers:
+
+```bash
+./dev.sh
+```
+
+This will start:
+
+- Backend API on http://127.0.0.1:8000
+- Frontend on http://localhost:3000
+
+## Manual Setup
+
+### Backend (FastF1 + FastAPI)
 
 ```bash
 cd backend
-```
-
-2. **Create and activate virtual environment** macOS/Linux
-
-```
 python3 -m venv venv
 source venv/bin/activate
-```
-
-3. **Install dependencies**
-
-```
 pip install -r requirements.txt
+uvicorn app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-4. **Run the backend**
+### Frontend (Elm)
 
-```
-uvicorn app:app --reload
-```
-
-Notes:
-
-- f1_cache/ stores FastF1 session data to speed up repeated requests.
-- Keep the venv activated whenever running the backend.
-
-## Frontend Setup (Elm)
-
-1. **Navigate to frontend folder**
-
-```
-cd ../frontend
-```
-
-2. **Install dependencies:**
-
-```
+```bash
+cd frontend
 npm install
-```
-
-3. **Compile and serve Elm with live reload**
-
-```
 npm start
 ```
+
+## API Endpoints
+
+- `GET /races/{year}` - Get all races for a year
+- `GET /race/{year}/{round}` - Get race overview
+- `GET /race/{year}/{round}/drivers` - Get driver finishing order
+- `GET /race/{year}/{round}/positions` - Get lap-by-lap position changes
+
+## Development
+
+- Backend uses FastF1 with caching in `backend/f1_cache/`
+- Frontend hot-reloads automatically when you save Elm files
+- Use `./dev.sh` for the most stable development experience

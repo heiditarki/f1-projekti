@@ -1,6 +1,6 @@
-module Route exposing (Route(..), fromUrl, href, toString)
+module Route exposing (Route(..), fromUrl, href)
 
-import Html.Styled as Html exposing (Attribute)
+import Html.Styled exposing (Attribute)
 import Html.Styled.Attributes as Attr
 import Url exposing (Url)
 import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, string)

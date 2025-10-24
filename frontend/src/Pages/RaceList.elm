@@ -1,14 +1,15 @@
 module Pages.RaceList exposing (Model, Msg, init, update, view)
 
+import Components.Spinner as Spinner
 import Css exposing (..)
 import Endpoints exposing (loadRaces)
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
 import Http
+import RemoteData exposing (RemoteData(..))
 import Route
 import Types.Date exposing (toString)
 import Types.Race exposing (Race)
-import Types.RemoteData exposing (RemoteData(..))
 import Utils
 
 
@@ -82,7 +83,7 @@ viewHeader =
             [ Html.text "2024 Season Races" ]
         , Html.p
             [ css
-                [ color (hex "#94a3b8")
+                [ color (rgba 255 255 255 0.7)
                 , fontSize (rem 1.1)
                 ]
             ]
@@ -93,29 +94,14 @@ viewHeader =
 viewContent : Model -> Html msg
 viewContent model =
     case model.races of
-        NotAsked ->
-            Html.div [] []
-
         Loading ->
-            viewLoading
+            Spinner.viewWithText "Loading races"
 
         Success races ->
             viewRaceList races
 
         Failure error ->
             viewError error
-
-
-viewLoading : Html msg
-viewLoading =
-    Html.div
-        [ css
-            [ textAlign center
-            , padding (rem 4)
-            , color (hex "#94a3b8")
-            ]
-        ]
-        [ Html.text "Loading races..." ]
 
 
 viewError : String -> Html msg
@@ -209,7 +195,7 @@ viewRaceCard race =
                 , Html.div
                     [ css
                         [ fontSize (rem 0.9)
-                        , color (hex "#a0a8b8")
+                        , color (rgba 255 255 255 0.7)
                         ]
                     ]
                     [ Html.text (race.date |> Maybe.map toString |> Maybe.withDefault "N/A") ]

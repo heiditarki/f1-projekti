@@ -5,7 +5,8 @@
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "elm-live src/Main.elm --pushstate --open --port=3000 -- --output=main.js"
+    "start": "elm-live src/Main.elm --pushstate --open --port=3000 -- --output=main.js",
+    "build": "elm make src/Main.elm --output=main.js --optimize"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +19,7 @@
     "trim-newlines": "^5.0.0"
   },
   "devDependencies": {
-    "elm-live": "^4.0.2"
+    "elm-live": "^4.0.2",  
+    "elm-format": "^0.8.7"
   }
 }

@@ -69,7 +69,7 @@ navLink label route =
     Html.a
         [ Route.href route
         , css
-            [ color (hex "#9ca3af")
+            [ color (hex "#FFF")
             , textDecoration none
             , hover
                 [ color (hex "#ef4444")

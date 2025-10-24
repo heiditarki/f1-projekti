@@ -1,7 +1,7 @@
-module Types.Race exposing (Race, raceDecoder, racesListDecoder)
+module Types.Race exposing (Race, racesListDecoder)
 
 import Json.Decode as Decode
-import Json.Decode.Pipeline exposing (optional, required)
+import Json.Decode.Pipeline exposing (required)
 import Types.Date exposing (Date, dateDecoder)
 
 
