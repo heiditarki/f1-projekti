@@ -5,6 +5,7 @@ import Css exposing (..)
 import Endpoints exposing (loadRaces)
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
+import Html.Styled.Events
 import Http
 import RemoteData exposing (RemoteData(..))
 import Route
@@ -19,13 +20,16 @@ import Utils
 
 type alias Model =
     { races : RemoteData String (List Race)
+    , selectedYear : Int
     }
 
 
 init : ( Model, Cmd Msg )
 init =
-    ( { races = Loading }
-    , loadRaces GotRaces
+    ( { races = Loading
+      , selectedYear = 2025
+      }
+    , loadRaces 2025 GotRaces
     )
 
 
@@ -35,6 +39,7 @@ init =
 
 type Msg
     = GotRaces (Result Http.Error (List Race))
+    | SelectYear Int
 
 
 
@@ -52,6 +57,11 @@ update msg model =
                 Err error ->
                     ( { model | races = Failure (Utils.httpErrorToString error) }, Cmd.none )
 
+        SelectYear year ->
+            ( { model | selectedYear = year, races = Loading }
+            , loadRaces year GotRaces
+            )
+
 
 
 -- VIEW
@@ -60,13 +70,13 @@ update msg model =
 view : Model -> Html Msg
 view model =
     Html.div []
-        [ viewHeader
+        [ viewHeader model
         , viewContent model
         ]
 
 
-viewHeader : Html msg
-viewHeader =
+viewHeader : Model -> Html Msg
+viewHeader model =
     Html.div
         [ css
             [ marginBottom (rem 2)
@@ -80,14 +90,16 @@ viewHeader =
                 , color (hex "#f1f5f9")
                 ]
             ]
-            [ Html.text "2024 Season Races" ]
+            [ Html.text (String.fromInt model.selectedYear ++ " Season Races") ]
         , Html.p
             [ css
                 [ color (rgba 255 255 255 0.7)
                 , fontSize (rem 1.1)
+                , marginBottom (rem 1.5)
                 ]
             ]
             [ Html.text "Click on any race to view detailed results and statistics" ]
+        , viewYearTabs model.selectedYear
         ]
 
 
@@ -98,7 +110,7 @@ viewContent model =
             Spinner.viewWithText "Loading races"
 
         Success races ->
-            viewRaceList races
+            viewRaceList model.selectedYear races
 
         Failure error ->
             viewError error
@@ -130,8 +142,8 @@ viewError error =
         ]
 
 
-viewRaceList : List Race -> Html msg
-viewRaceList races =
+viewRaceList : Int -> List Race -> Html msg
+viewRaceList year races =
     Html.div
         [ css
             [ displayFlex
@@ -139,13 +151,13 @@ viewRaceList races =
             , property "gap" "1rem"
             ]
         ]
-        (List.map viewRaceCard races)
+        (List.map (viewRaceCard year) races)
 
 
-viewRaceCard : Race -> Html msg
-viewRaceCard race =
+viewRaceCard : Int -> Race -> Html msg
+viewRaceCard year race =
     Html.a
-        [ Route.href (Route.RaceDetail (String.fromInt race.round))
+        [ Route.href (Route.RaceDetail year (String.fromInt race.round))
         , css
             [ backgroundColor (rgba 30 20 40 0.4)
             , property "backdrop-filter" "blur(10px)"
@@ -209,3 +221,71 @@ viewRaceCard race =
             ]
             [ Html.text "→" ]
         ]
+
+
+viewYearTabs : Int -> Html Msg
+viewYearTabs selectedYear =
+    Html.div
+        [ css
+            [ displayFlex
+            , property "gap" "0.5rem"
+            , marginBottom (rem 1)
+            ]
+        ]
+        (List.map (viewYearTab selectedYear) [ 2025, 2024, 2023, 2022, 2021 ])
+
+
+viewYearTab : Int -> Int -> Html Msg
+viewYearTab selectedYear year =
+    Html.button
+        [ Html.Styled.Events.onClick (SelectYear year)
+        , css
+            [ backgroundColor
+                (if year == selectedYear then
+                    rgba 239 68 68 0.2
+
+                 else
+                    rgba 30 20 40 0.4
+                )
+            , property "backdrop-filter" "blur(10px)"
+            , property "-webkit-backdrop-filter" "blur(10px)"
+            , border3 (px 1)
+                solid
+                (if year == selectedYear then
+                    rgba 239 68 68 0.5
+
+                 else
+                    rgba 100 70 120 0.3
+                )
+            , borderRadius (px 8)
+            , padding2 (rem 0.75) (rem 1.5)
+            , color
+                (if year == selectedYear then
+                    hex "#ef4444"
+
+                 else
+                    rgba 255 255 255 0.7
+                )
+            , fontSize (rem 0.9)
+            , fontWeight bold
+            , cursor pointer
+            , hover
+                [ backgroundColor
+                    (if year == selectedYear then
+                        rgba 239 68 68 0.3
+
+                     else
+                        rgba 30 20 40 0.6
+                    )
+                , borderColor
+                    (if year == selectedYear then
+                        rgba 239 68 68 0.7
+
+                     else
+                        rgba 100 70 120 0.5
+                    )
+                ]
+            , property "transition" "all 0.3s ease"
+            ]
+        ]
+        [ Html.text (String.fromInt year) ]

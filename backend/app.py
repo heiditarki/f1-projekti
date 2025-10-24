@@ -20,6 +20,19 @@ app.add_middleware(
 )
 
 
+def format_timedelta(td):
+    """Format timedelta as HH:MM:SS.mmm"""
+    if pd.isna(td) or td is None:
+        return None
+
+    total_seconds = td.total_seconds()
+    hours = int(total_seconds // 3600)
+    minutes = int((total_seconds % 3600) // 60)
+    seconds = total_seconds % 60
+
+    return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
+
+
 @app.get("/races/{year}")
 def get_races(year: int):
     """Get all races for a specific year"""
@@ -54,20 +67,20 @@ def get_races(year: int):
         return {"error": str(e)}
 
 
-@app.get("/race/{year}/{round}")
-def get_race_overview(year: int, round: int):
+@app.get("/race/{year}/{round_num}")
+def get_race_overview(year: int, round_num: int):
     """Get basic race overview - name, circuit, date, weather"""
     try:
         # Validate round number
-        if round < 1:
+        if round_num < 1:
             raise HTTPException(status_code=400, detail="Round must be 1 or greater")
 
         # Get event info from schedule
         schedule = fastf1.get_event_schedule(year)
-        event = schedule[schedule["RoundNumber"] == round].iloc[0]
+        event = schedule[schedule["RoundNumber"] == round_num].iloc[0]
 
         # Load the race session
-        session = fastf1.get_session(year, round, "R")
+        session = fastf1.get_session(year, round_num, "R")
 
         # IMPORTANT: Must call load() before accessing any session data
         session.load()
@@ -105,7 +118,9 @@ def get_race_overview(year: int, round: int):
             and session.laps is not None
             and not session.laps.empty
         ):
-            total_laps = int(session.laps["LapNumber"].max())
+            max_lap = session.laps["LapNumber"].max()
+            if pd.notna(max_lap):
+                total_laps = int(max_lap)
 
         # Get race duration (winner's total time)
         race_time = None
@@ -118,8 +133,36 @@ def get_race_overview(year: int, round: int):
             if pd.notna(winner["Time"]):
                 race_time = str(winner["Time"])
 
+        # Calculate additional race statistics
+        circuit_length = None
+        if (
+            hasattr(session, "laps")
+            and session.laps is not None
+            and not session.laps.empty
+        ):
+            # Estimate circuit length from fastest lap time
+            fastest_lap = session.laps[session.laps["LapTime"].notna()]["LapTime"].min()
+            if pd.notna(fastest_lap):
+                fastest_time_seconds = fastest_lap.total_seconds()
+                # Estimate circuit length based on average F1 speed (~200 km/h)
+                circuit_length = round((fastest_time_seconds / 3600) * 200, 2)
+
+        # Get number of corners from circuit info
+        num_corners = None
+        try:
+            circuit_info = session.get_circuit_info()
+            if hasattr(circuit_info, "corners") and circuit_info.corners is not None:
+                num_corners = len(circuit_info.corners)
+        except:
+            pass
+
+        # Calculate race distance
+        race_distance = None
+        if circuit_length and total_laps:
+            race_distance = round(circuit_length * total_laps, 2)
+
         return {
-            "round": round,
+            "round": round_num,
             "raceName": str(event["EventName"]),
             "circuitName": str(event["Location"]),
             "country": str(event["Country"]),
@@ -130,6 +173,9 @@ def get_race_overview(year: int, round: int):
             ),
             "totalLaps": total_laps,
             "raceDuration": race_time,
+            "circuitLength": circuit_length,
+            "numCorners": num_corners,
+            "raceDistance": race_distance,
             "weather": weather,
         }
 
@@ -361,3 +407,229 @@ def get_position_changes(year: int, round: int):
 
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/race/{year}/{round}/highlights")
+def get_race_highlights(year: int, round: int):
+    """Get race highlights - winner, fastest lap, fastest pit stop"""
+    try:
+        # Validate round number
+        if round < 1:
+            raise HTTPException(status_code=400, detail="Round must be 1 or greater")
+
+        # Load the race session
+        session = fastf1.get_session(year, round, "R")
+        session.load(laps=True, telemetry=False, weather=False, messages=False)
+
+        # Get results for winner
+        results = session.results
+        if results is None or results.empty:
+            raise HTTPException(
+                status_code=404, detail="No results found for this race"
+            )
+
+        winner = results.iloc[0]
+
+        # Get fastest lap from laps data
+        laps = session.laps
+        fastest_lap_info = None
+        if laps is not None and not laps.empty:
+            # Filter out invalid lap times and find fastest
+            valid_laps = laps[
+                (laps["LapTime"].notna())
+                & (laps["LapTime"] != pd.NaT)
+                & (laps["Deleted"] != True)
+            ]
+
+            if not valid_laps.empty:
+                # Find fastest lap using sort instead of idxmin
+                fastest_lap = valid_laps.sort_values("LapTime").iloc[0]
+                # Get driver info from results
+                driver_number = fastest_lap["DriverNumber"]
+                driver_info = results[results["DriverNumber"] == driver_number]
+
+                if not driver_info.empty:
+                    driver = driver_info.iloc[0]
+                    fastest_lap_info = {
+                        "driverCode": (
+                            str(fastest_lap["Driver"])
+                            if pd.notna(fastest_lap["Driver"])
+                            else None
+                        ),
+                        "driverName": (
+                            f"{driver['FirstName']} {driver['LastName']}"
+                            if pd.notna(driver["FirstName"])
+                            and pd.notna(driver["LastName"])
+                            else str(fastest_lap["Driver"])
+                        ),
+                        "lapNumber": (
+                            int(fastest_lap["LapNumber"])
+                            if pd.notna(fastest_lap["LapNumber"])
+                            else None
+                        ),
+                        "lapTime": (
+                            format_timedelta(fastest_lap["LapTime"])
+                            if pd.notna(fastest_lap["LapTime"])
+                            else None
+                        ),
+                        "team": (
+                            str(fastest_lap["Team"])
+                            if pd.notna(fastest_lap["Team"])
+                            else None
+                        ),
+                        "teamColor": (
+                            str(driver["TeamColor"])
+                            if pd.notna(driver["TeamColor"])
+                            else None
+                        ),
+                    }
+
+        # Get fastest pit stop from laps data
+        fastest_pit_info = None
+        if laps is not None and not laps.empty:
+            # Find laps with complete pit stop data (both PitInTime and PitOutTime exist)
+            pit_laps = laps[
+                (laps["PitInTime"].notna())
+                & (laps["PitOutTime"].notna())
+                & (laps["PitInTime"] != pd.NaT)
+                & (laps["PitOutTime"] != pd.NaT)
+            ]
+
+            if not pit_laps.empty:
+                # Calculate pit stop duration (PitInTime - PitOutTime)
+                pit_laps = pit_laps.copy()
+                pit_laps["PitDuration"] = pit_laps["PitInTime"] - pit_laps["PitOutTime"]
+
+                # Find fastest pit stop using sort instead of idxmin
+                fastest_pit = pit_laps.sort_values("PitDuration").iloc[0]
+                # Get driver info from results
+                driver_number = fastest_pit["DriverNumber"]
+                driver_info = results[results["DriverNumber"] == driver_number]
+
+                if not driver_info.empty:
+                    driver = driver_info.iloc[0]
+                    fastest_pit_info = {
+                        "driverCode": (
+                            str(fastest_pit["Driver"])
+                            if pd.notna(fastest_pit["Driver"])
+                            else None
+                        ),
+                        "driverName": (
+                            f"{driver['FirstName']} {driver['LastName']}"
+                            if pd.notna(driver["FirstName"])
+                            and pd.notna(driver["LastName"])
+                            else str(fastest_pit["Driver"])
+                        ),
+                        "lapNumber": (
+                            int(fastest_pit["LapNumber"])
+                            if pd.notna(fastest_pit["LapNumber"])
+                            else None
+                        ),
+                        "pitDuration": (
+                            format_timedelta(fastest_pit["PitDuration"])
+                            if pd.notna(fastest_pit["PitDuration"])
+                            else None
+                        ),
+                        "team": (
+                            str(fastest_pit["Team"])
+                            if pd.notna(fastest_pit["Team"])
+                            else None
+                        ),
+                        "teamColor": (
+                            str(driver["TeamColor"])
+                            if pd.notna(driver["TeamColor"])
+                            else None
+                        ),
+                    }
+
+        # Get fastest speed from laps data
+        fastest_speed_info = None
+        if laps is not None and not laps.empty:
+            # Find laps with valid speed data (SpeedFL - Speed at Finish Line)
+            speed_laps = laps[(laps["SpeedFL"].notna()) & (laps["SpeedFL"] != pd.NaT)]
+
+            if not speed_laps.empty:
+                # Find fastest speed
+                fastest_speed = speed_laps.loc[speed_laps["SpeedFL"].idxmax()]
+                # Get driver info from results
+                driver_number = fastest_speed["DriverNumber"]
+                driver_info = results[results["DriverNumber"] == driver_number]
+
+                if not driver_info.empty:
+                    driver = driver_info.iloc[0]
+                    fastest_speed_info = {
+                        "driverCode": (
+                            str(fastest_speed["Driver"])
+                            if pd.notna(fastest_speed["Driver"])
+                            else None
+                        ),
+                        "driverName": (
+                            f"{driver['FirstName']} {driver['LastName']}"
+                            if pd.notna(driver["FirstName"])
+                            and pd.notna(driver["LastName"])
+                            else str(fastest_speed["Driver"])
+                        ),
+                        "lapNumber": (
+                            int(fastest_speed["LapNumber"])
+                            if pd.notna(fastest_speed["LapNumber"])
+                            else None
+                        ),
+                        "speed": (
+                            float(fastest_speed["SpeedFL"])
+                            if pd.notna(fastest_speed["SpeedFL"])
+                            else None
+                        ),
+                        "team": (
+                            str(fastest_speed["Team"])
+                            if pd.notna(fastest_speed["Team"])
+                            else None
+                        ),
+                        "teamColor": (
+                            str(driver["TeamColor"])
+                            if pd.notna(driver["TeamColor"])
+                            else None
+                        ),
+                    }
+
+        return {
+            "year": year,
+            "round": round,
+            "raceName": str(session.event["EventName"]),
+            "winner": {
+                "driverCode": (
+                    str(winner["Abbreviation"])
+                    if pd.notna(winner["Abbreviation"])
+                    else None
+                ),
+                "driverName": (
+                    f"{winner['FirstName']} {winner['LastName']}"
+                    if pd.notna(winner["FirstName"]) and pd.notna(winner["LastName"])
+                    else None
+                ),
+                "raceTime": (
+                    format_timedelta(winner["Time"])
+                    if pd.notna(winner["Time"])
+                    else None
+                ),
+                "team": (
+                    str(winner["TeamName"]) if pd.notna(winner["TeamName"]) else None
+                ),
+                "teamColor": (
+                    str(winner["TeamColor"]) if pd.notna(winner["TeamColor"]) else None
+                ),
+                "points": float(winner["Points"]) if pd.notna(winner["Points"]) else 0,
+            },
+            "fastestLap": fastest_lap_info,
+            "fastestPitStop": fastest_pit_info,
+            "fastestSpeed": fastest_speed_info,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"Error loading race highlights: {str(e)}"
+        )

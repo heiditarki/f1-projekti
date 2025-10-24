@@ -33,7 +33,7 @@ view =
             ]
             [ -- Logo section
               Html.a
-                [ Route.href Route.RaceOverview
+                [ Route.href Route.Home
                 , css
                     [ displayFlex
                     , alignItems center
@@ -58,7 +58,7 @@ view =
                     , fontWeight (int 600)
                     ]
                 ]
-                [ navLink "RACES" Route.RaceOverview
+                [ navLink "RACES" (Route.RaceOverview 2025)
                 ]
             ]
         ]

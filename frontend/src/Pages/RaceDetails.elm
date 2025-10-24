@@ -1,6 +1,8 @@
 module Pages.RaceDetails exposing (Model, Msg, init, update, view)
 
 import Components.PositionChart as PositionChart
+import Components.RaceHighlights as RaceHighlights
+import Components.Skeleton as Skeleton
 import Components.Spinner as Spinner
 import Css exposing (..)
 import Endpoints
@@ -14,6 +16,7 @@ import Types.Date exposing (toString)
 import Types.DriverOrder exposing (Driver, DriverOrder)
 import Types.PositionChanges exposing (PositionChanges)
 import Types.RaceDetails exposing (RaceDetails, Weather)
+import Types.RaceHighlights exposing (RaceHighlights)
 import Utils
 
 
@@ -28,30 +31,21 @@ type alias Model =
     , raceDetails : RemoteData String RaceDetails
     , driverOrder : RemoteData String DriverOrder
     , positionChanges : RemoteData String PositionChanges
+    , raceHighlights : RemoteData String RaceHighlights
     , chartModel : Maybe PositionChart.Model
     }
 
 
-init : String -> ( Model, Cmd Msg )
-init raceId =
+init : Int -> String -> ( Model, Cmd Msg )
+init year raceId =
     let
-        ( year, round ) =
-            case String.split "-" raceId of
-                [ yearStr, roundStr ] ->
-                    case ( String.toInt yearStr, String.toInt roundStr ) of
-                        ( Just y, Just r ) ->
-                            ( y, r )
+        round =
+            case String.toInt raceId of
+                Just r ->
+                    r
 
-                        _ ->
-                            ( 2024, Maybe.withDefault 1 (String.toInt raceId) )
-
-                _ ->
-                    case String.toInt raceId of
-                        Just r ->
-                            ( 2024, r )
-
-                        Nothing ->
-                            ( 2024, 1 )
+                Nothing ->
+                    1
     in
     ( { raceId = raceId
       , year = year
@@ -59,12 +53,14 @@ init raceId =
       , raceDetails = Loading
       , driverOrder = Loading
       , positionChanges = Loading
+      , raceHighlights = Loading
       , chartModel = Nothing
       }
     , Cmd.batch
         [ Endpoints.getRaceDetails year round GotRaceDetails
         , Endpoints.getDriverOrder year round GotDriverOrder
         , Endpoints.getPositionChanges year round GotPositionChanges
+        , Endpoints.getRaceHighlights year round GotRaceHighlights
         ]
     )
 
@@ -77,6 +73,7 @@ type Msg
     = GotRaceDetails (Result Http.Error RaceDetails)
     | GotDriverOrder (Result Http.Error DriverOrder)
     | GotPositionChanges (Result Http.Error PositionChanges)
+    | GotRaceHighlights (Result Http.Error RaceHighlights)
     | ChartMsg PositionChart.Msg
     | Retry
 
@@ -121,6 +118,16 @@ update msg model =
             , Cmd.none
             )
 
+        GotRaceHighlights (Ok highlights) ->
+            ( { model | raceHighlights = Success highlights }
+            , Cmd.none
+            )
+
+        GotRaceHighlights (Err error) ->
+            ( { model | raceHighlights = Failure (Utils.httpErrorToString error) }
+            , Cmd.none
+            )
+
         ChartMsg chartMsg ->
             case model.chartModel of
                 Just chartModel ->
@@ -136,12 +143,14 @@ update msg model =
                 | raceDetails = Loading
                 , driverOrder = Loading
                 , positionChanges = Loading
+                , raceHighlights = Loading
                 , chartModel = Nothing
               }
             , Cmd.batch
                 [ Endpoints.getRaceDetails model.year model.round GotRaceDetails
                 , Endpoints.getDriverOrder model.year model.round GotDriverOrder
                 , Endpoints.getPositionChanges model.year model.round GotPositionChanges
+                , Endpoints.getRaceHighlights model.year model.round GotRaceHighlights
                 ]
             )
 
@@ -153,7 +162,7 @@ update msg model =
 view : Model -> Html Msg
 view model =
     Html.div []
-        [ viewBackButton
+        [ viewBackButton model.year
         , Html.div
             [ css
                 [ displayFlex
@@ -173,13 +182,13 @@ view model =
         ]
 
 
-viewBackButton : Html msg
-viewBackButton =
+viewBackButton : Int -> Html msg
+viewBackButton year =
     Html.div
         [ css [ marginBottom (rem 1.5) ]
         ]
         [ Html.a
-            [ Route.href Route.RaceOverview
+            [ Route.href (Route.RaceOverview year)
             , css
                 [ display inlineFlex
                 , alignItems center
@@ -220,7 +229,7 @@ viewDriverList driverOrderData =
         ]
         [ case driverOrderData of
             Loading ->
-                Html.text ""
+                Skeleton.viewSkeletonRaceResults
 
             Success driverOrder ->
                 viewDriverListContent driverOrder
@@ -428,32 +437,10 @@ viewRaceContent : Model -> Html Msg
 viewRaceContent model =
     case ( model.raceDetails, model.driverOrder ) of
         ( Loading, _ ) ->
-            Html.div
-                [ css
-                    [ backgroundColor (rgba 30 20 40 0.4)
-                    , property "backdrop-filter" "blur(10px)"
-                    , property "-webkit-backdrop-filter" "blur(10px)"
-                    , border3 (px 1) solid (rgba 100 70 120 0.3)
-                    , borderRadius (px 16)
-                    , padding (rem 4)
-                    , textAlign center
-                    ]
-                ]
-                [ Spinner.viewWithText "Loading race details" ]
+            Skeleton.viewSkeletonLayout
 
         ( _, Loading ) ->
-            Html.div
-                [ css
-                    [ backgroundColor (rgba 30 20 40 0.4)
-                    , property "backdrop-filter" "blur(10px)"
-                    , property "-webkit-backdrop-filter" "blur(10px)"
-                    , border3 (px 1) solid (rgba 100 70 120 0.3)
-                    , borderRadius (px 16)
-                    , padding (rem 4)
-                    , textAlign center
-                    ]
-                ]
-                [ Spinner.viewWithText "Loading race details" ]
+            Skeleton.viewSkeletonLayout
 
         ( Success _, _ ) ->
             viewRaceDetails model
@@ -517,29 +504,46 @@ viewRaceDetails model =
                     [ css
                         [ displayFlex
                         , property "gap" "1rem"
-                        , flexWrap wrap
+                        , alignItems flexStart
                         , marginBottom (rem 2)
                         ]
                     ]
                     [ Html.div
                         [ css
                             [ flex (int 1)
-                            , minWidth (px 250)
+                            , minWidth (px 300)
                             ]
                         ]
-                        [ viewRaceInfo details ]
-                    , case details.weather of
-                        Just weather ->
-                            Html.div
-                                [ css
-                                    [ flex (int 1)
-                                    , minWidth (px 250)
-                                    ]
+                        [ viewRaceHighlights model ]
+                    , Html.div
+                        [ css
+                            [ flex (int 1)
+                            , minWidth (px 300)
+                            , displayFlex
+                            , flexDirection column
+                            , property "gap" "1rem"
+                            ]
+                        ]
+                        [ Html.div
+                            [ css
+                                [ flex (int 1)
+                                , minWidth (px 250)
                                 ]
-                                [ viewWeatherCard weather ]
+                            ]
+                            [ viewRaceInfo details ]
+                        , case details.weather of
+                            Just weather ->
+                                Html.div
+                                    [ css
+                                        [ flex (int 1)
+                                        , minWidth (px 250)
+                                        ]
+                                    ]
+                                    [ viewWeatherCard weather ]
 
-                        Nothing ->
-                            Html.text ""
+                            Nothing ->
+                                Html.text ""
+                        ]
                     ]
                 , viewPositionChart model
                 ]
@@ -598,10 +602,12 @@ viewRaceInfo details =
                 , property "gap" "1rem"
                 ]
             ]
-            [ viewInfoItem "Round" (String.fromInt details.round)
-            , viewInfoItem "Date" (details.date |> Maybe.map toString |> Maybe.withDefault "N/A")
+            [ viewInfoItem "Date" (details.date |> Maybe.map toString |> Maybe.withDefault "N/A")
             , viewInfoItem "Total Laps" (String.fromInt details.totalLaps)
             , viewInfoItem "Race Duration" (Maybe.withDefault "N/A" details.raceDuration)
+            , viewInfoItem "Circuit Length" (details.circuitLength |> Maybe.map (\len -> String.fromFloat len ++ " km") |> Maybe.withDefault "N/A")
+            , viewInfoItem "Corners" (details.numCorners |> Maybe.map String.fromInt |> Maybe.withDefault "N/A")
+            , viewInfoItem "Race Distance" (details.raceDistance |> Maybe.map (\dist -> String.fromFloat dist ++ " km") |> Maybe.withDefault "N/A")
             ]
         ]
 
@@ -643,6 +649,9 @@ viewWeatherCard weather =
             , border3 (px 1) solid (rgba 100 70 120 0.3)
             , borderRadius (px 16)
             , padding (rem 1.5)
+            , height (pct 100)
+            , displayFlex
+            , flexDirection column
             ]
         ]
         [ Html.h3
@@ -659,6 +668,8 @@ viewWeatherCard weather =
                 [ displayFlex
                 , flexWrap wrap
                 , property "gap" "1rem"
+                , flex (int 1)
+                , alignItems center
                 ]
             ]
             [ viewWeatherItem "Air Temp" weather.airTemp "°C"
@@ -757,3 +768,46 @@ viewPositionChart model =
 
         _ ->
             Html.text ""
+
+
+viewRaceHighlights : Model -> Html Msg
+viewRaceHighlights model =
+    case model.raceHighlights of
+        Success highlights ->
+            RaceHighlights.view highlights
+
+        Loading ->
+            Html.div
+                [ css
+                    [ backgroundColor (rgba 30 20 40 0.4)
+                    , property "backdrop-filter" "blur(10px)"
+                    , property "-webkit-backdrop-filter" "blur(10px)"
+                    , border3 (px 1) solid (rgba 100 70 120 0.3)
+                    , borderRadius (px 16)
+                    , padding (rem 3)
+                    , marginTop (rem 2)
+                    , textAlign center
+                    ]
+                ]
+                [ Spinner.viewWithText "Loading race highlights..." ]
+
+        Failure error ->
+            Html.div
+                [ css
+                    [ backgroundColor (rgba 30 20 40 0.4)
+                    , property "backdrop-filter" "blur(10px)"
+                    , property "-webkit-backdrop-filter" "blur(10px)"
+                    , border3 (px 1) solid (rgba 100 70 120 0.3)
+                    , borderRadius (px 16)
+                    , padding (rem 2)
+                    , marginTop (rem 2)
+                    ]
+                ]
+                [ Html.p
+                    [ css
+                        [ color (rgba 255 255 255 0.7)
+                        , fontSize (rem 0.9)
+                        ]
+                    ]
+                    [ Html.text ("Failed to load race highlights: " ++ error) ]
+                ]

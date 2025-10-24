@@ -3,8 +3,9 @@ module Endpoints exposing (..)
 import Http
 import Types.DriverOrder as DriverOrder exposing (DriverOrder)
 import Types.PositionChanges as PositionChanges exposing (PositionChanges)
-import Types.Race as Race exposing (Race)
+import Types.Race exposing (Race, racesListDecoder)
 import Types.RaceDetails as RaceDetails exposing (RaceDetails)
+import Types.RaceHighlights as RaceHighlights exposing (RaceHighlights)
 
 
 baseUrl : String
@@ -12,13 +13,13 @@ baseUrl =
     "http://127.0.0.1:8000"
 
 
-loadRaces : (Result Http.Error (List Race) -> msg) -> Cmd msg
-loadRaces toMsg =
+loadRaces : Int -> (Result Http.Error (List Race) -> msg) -> Cmd msg
+loadRaces year toMsg =
     Http.get
-        { url = baseUrl ++ "/races/2024"
+        { url = baseUrl ++ "/races/" ++ String.fromInt year
         , expect =
             Http.expectJson toMsg
-                Race.racesListDecoder
+                racesListDecoder
         }
 
 
@@ -43,4 +44,12 @@ getPositionChanges year round toMsg =
     Http.get
         { url = baseUrl ++ "/race/" ++ String.fromInt year ++ "/" ++ String.fromInt round ++ "/positions"
         , expect = Http.expectJson toMsg PositionChanges.positionChangesDecoder
+        }
+
+
+getRaceHighlights : Int -> Int -> (Result Http.Error RaceHighlights -> msg) -> Cmd msg
+getRaceHighlights year round toMsg =
+    Http.get
+        { url = baseUrl ++ "/race/" ++ String.fromInt year ++ "/" ++ String.fromInt round ++ "/highlights"
+        , expect = Http.expectJson toMsg RaceHighlights.raceHighlightsDecoder
         }

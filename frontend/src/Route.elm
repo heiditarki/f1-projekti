@@ -3,13 +3,13 @@ module Route exposing (Route(..), fromUrl, href)
 import Html.Styled exposing (Attribute)
 import Html.Styled.Attributes as Attr
 import Url exposing (Url)
-import Url.Parser as Parser exposing ((</>), Parser, oneOf, s, string)
+import Url.Parser as Parser exposing ((</>), Parser, int, oneOf, s, string)
 
 
 type Route
     = Home
-    | RaceOverview
-    | RaceDetail String
+    | RaceOverview Int
+    | RaceDetail Int String
     | NotFound
 
 
@@ -17,8 +17,8 @@ parser : Parser (Route -> a) a
 parser =
     oneOf
         [ Parser.map Home Parser.top
-        , Parser.map RaceOverview (s "races")
-        , Parser.map RaceDetail (s "race" </> string)
+        , Parser.map RaceOverview (s "races" </> int)
+        , Parser.map RaceDetail (s "race" </> int </> string)
         ]
 
 
@@ -34,11 +34,11 @@ toString route =
         Home ->
             "/"
 
-        RaceOverview ->
-            "/races"
+        RaceOverview year ->
+            "/races/" ++ String.fromInt year
 
-        RaceDetail id ->
-            "/race/" ++ id
+        RaceDetail year id ->
+            "/race/" ++ String.fromInt year ++ "/" ++ id
 
         NotFound ->
             "/404"

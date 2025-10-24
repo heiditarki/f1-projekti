@@ -6,6 +6,7 @@ import Components.Header as Header
 import Css exposing (..)
 import Html.Styled as Html exposing (Html)
 import Html.Styled.Attributes exposing (css)
+import Pages.Home as Home
 import Pages.RaceDetails as RaceDetails
 import Pages.RaceList as RaceList
 import Route exposing (Route)
@@ -24,7 +25,8 @@ type alias Model =
 
 
 type Page
-    = RaceListPage RaceList.Model
+    = HomePage Home.Model
+    | RaceListPage RaceList.Model
     | RaceDetailPage RaceDetails.Model
     | NotFoundPage
 
@@ -52,21 +54,21 @@ initPage route =
         Route.Home ->
             let
                 ( model, cmd ) =
-                    RaceList.init
+                    Home.init
             in
-            ( RaceListPage model, Cmd.map RaceListMsg cmd )
+            ( HomePage model, Cmd.map HomeMsg cmd )
 
-        Route.RaceOverview ->
+        Route.RaceOverview _ ->
             let
                 ( model, cmd ) =
                     RaceList.init
             in
             ( RaceListPage model, Cmd.map RaceListMsg cmd )
 
-        Route.RaceDetail id ->
+        Route.RaceDetail year id ->
             let
                 ( model, cmd ) =
-                    RaceDetails.init id
+                    RaceDetails.init year id
             in
             ( RaceDetailPage model, Cmd.map RaceDetailMsg cmd )
 
@@ -81,6 +83,7 @@ initPage route =
 type Msg
     = LinkClicked Browser.UrlRequest
     | UrlChanged Url
+    | HomeMsg Home.Msg
     | RaceListMsg RaceList.Msg
     | RaceDetailMsg RaceDetails.Msg
 
@@ -109,6 +112,20 @@ update msg model =
                     initPage route
             in
             ( { model | route = route, page = page }, cmd )
+
+        HomeMsg homeMsg ->
+            case model.page of
+                HomePage homeModel ->
+                    let
+                        ( updatedModel, cmd ) =
+                            Home.update homeMsg homeModel
+                    in
+                    ( { model | page = HomePage updatedModel }
+                    , Cmd.map HomeMsg cmd
+                    )
+
+                _ ->
+                    ( model, Cmd.none )
 
         RaceListMsg listMsg ->
             case model.page of
@@ -173,6 +190,9 @@ view model =
 viewPage : Model -> Html Msg
 viewPage model =
     case model.page of
+        HomePage homeModel ->
+            Html.map HomeMsg (Home.view homeModel)
+
         RaceListPage listModel ->
             Html.map RaceListMsg (RaceList.view listModel)
 
@@ -199,7 +219,7 @@ viewNotFound =
             ]
             [ Html.text "404 - Page not found" ]
         , Html.a
-            [ Route.href Route.RaceOverview
+            [ Route.href (Route.RaceOverview 2025)
             , css
                 [ color (hex "#ef4444")
                 , textDecoration none

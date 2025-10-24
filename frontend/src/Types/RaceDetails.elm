@@ -24,6 +24,9 @@ type alias RaceDetails =
     , date : Maybe Date
     , totalLaps : Int
     , raceDuration : Maybe String
+    , circuitLength : Maybe Float
+    , numCorners : Maybe Int
+    , raceDistance : Maybe Float
     , weather : Maybe Weather
     }
 
@@ -50,6 +53,9 @@ raceDetailsDecoder =
         |> required "date" dateDecoder
         |> required "totalLaps" Decode.int
         |> optional "raceDuration" (Decode.nullable raceDurationDecoder) Nothing
+        |> optional "circuitLength" (Decode.nullable Decode.float) Nothing
+        |> optional "numCorners" (Decode.nullable Decode.int) Nothing
+        |> optional "raceDistance" (Decode.nullable Decode.float) Nothing
         |> optional "weather" (Decode.nullable weatherDecoder) Nothing
 
 
