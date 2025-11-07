@@ -4,8 +4,10 @@
   "description": "",
   "main": "main.js",
   "scripts": {
+    "prestart": "node scripts/generate-config.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "elm-live src/Main.elm --pushstate --open --port=3000 -- --output=main.js",
+    "start": "elm-live src/Main.elm --pushstate --host=127.0.0.1 --port=3001 -- --output=main.js",
+    "prebuild": "node scripts/generate-config.js",
     "build": "elm make src/Main.elm --output=main.js --optimize"
   },
   "keywords": [],
@@ -19,6 +21,7 @@
     "trim-newlines": "^5.0.0"
   },
   "devDependencies": {
+    "elm": "^0.19.1-6",
     "elm-live": "^4.0.2",  
     "elm-format": "^0.8.7"
   }

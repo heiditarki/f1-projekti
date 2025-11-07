@@ -1,7 +1,9 @@
 module Endpoints exposing (..)
 
+import Config
 import Http
 import Types.DriverOrder as DriverOrder exposing (DriverOrder)
+import Types.NextRace exposing (NextRace, nextRaceDecoder)
 import Types.PositionChanges as PositionChanges exposing (PositionChanges)
 import Types.Race exposing (Race, racesListDecoder)
 import Types.RaceDetails as RaceDetails exposing (RaceDetails)
@@ -10,7 +12,15 @@ import Types.RaceHighlights as RaceHighlights exposing (RaceHighlights)
 
 baseUrl : String
 baseUrl =
-    "http://127.0.0.1:8000"
+    Config.apiBaseUrl
+
+
+loadNextRace : (Result Http.Error NextRace -> msg) -> Cmd msg
+loadNextRace toMsg =
+    Http.get
+        { url = baseUrl ++ "/next-race"
+        , expect = Http.expectJson toMsg nextRaceDecoder
+        }
 
 
 loadRaces : Int -> (Result Http.Error (List Race) -> msg) -> Cmd msg

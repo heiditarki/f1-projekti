@@ -28,13 +28,14 @@ pip install -r requirements.txt
 uvicorn app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-To deploy on Heroku:
+To deploy on Fly.io:
 
 ```bash
 cd backend
-heroku create f1-backend-tarkiainen
-heroku config:set ALLOWED_ORIGINS="https://your-vercel-app.vercel.app"
-git push heroku main
+fly auth login
+fly launch --name f1-backend-tarkiainen --copy-config --region ams --no-deploy
+fly secrets set ALLOWED_ORIGINS="https://f1-dashboard.tarkiainen.vercel.app"
+fly deploy
 ```
 
 ### Frontend (Elm)

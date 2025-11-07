@@ -11,15 +11,12 @@ view =
     Html.nav
         [ css
             [ backgroundColor (hex "#000000")
-            , borderBottom3 (px 1) solid (rgba 239 68 68 0.3)
-            , padding2 (rem 1) (rem 1.5)
+            , padding2 (rem 1.2) (rem 3)
             , position fixed
             , top zero
             , left zero
             , right zero
-            , zIndex (int 50)
-            , property "backdrop-filter" "blur(12px)"
-            , backgroundColor (rgba 0 0 0 0.8)
+            , zIndex (int 1000)
             ]
         ]
         [ Html.div
@@ -31,50 +28,58 @@ view =
                 , justifyContent spaceBetween
                 ]
             ]
-            [ -- Logo section
-              Html.a
-                [ Route.href Route.Home
-                , css
-                    [ displayFlex
-                    , alignItems center
-                    , textDecoration none
-                    , fontSize (rem 1.5)
-                    , fontWeight bold
-                    , property "background" "linear-gradient(to right, #ef4444, #f87171)"
-                    , property "-webkit-background-clip" "text"
-                    , property "background-clip" "text"
-                    , property "-webkit-text-fill-color" "transparent"
-                    , property "transition" "all 0.3s ease"
-                    ]
-                ]
-                [ Html.text "F1 DASHBOARD" ]
-
-            -- Navigation links
-            , Html.div
-                [ css
-                    [ displayFlex
-                    , property "gap" "2rem"
-                    , fontSize (rem 0.875)
-                    , fontWeight (int 600)
-                    ]
-                ]
-                [ navLink "RACES" (Route.RaceOverview 2025)
-                ]
+            [ viewLogo
+            , viewNavLink
             ]
         ]
 
 
-navLink : String -> Route.Route -> Html msg
-navLink label route =
+viewLogo : Html msg
+viewLogo =
     Html.a
-        [ Route.href route
+        [ Route.href Route.Home
         , css
-            [ color (hex "#FFF")
+            [ displayFlex
+            , alignItems baseline
             , textDecoration none
+            , property "gap" "0.4rem"
+            ]
+        ]
+        [ Html.span
+            [ css
+                [ color (hex "#ef4444")
+                , fontSize (rem 1.3)
+                , fontWeight bold
+                , letterSpacing (px 1)
+                ]
+            ]
+            [ Html.text "F1" ]
+        , Html.span
+            [ css
+                [ color (hex "#ffffff")
+                , fontSize (rem 1.3)
+                , fontWeight (int 300)
+                , letterSpacing (px 0.5)
+                ]
+            ]
+            [ Html.text "DASHBOARD" ]
+        ]
+
+
+viewNavLink : Html msg
+viewNavLink =
+    Html.a
+        [ Route.href (Route.RaceOverview 2025)
+        , css
+            [ color (hex "#ffffff")
+            , textDecoration none
+            , fontSize (rem 0.95)
+            , fontWeight (int 400)
+            , letterSpacing (px 0.5)
             , hover
                 [ color (hex "#ef4444")
                 ]
-            , property "transition" "color 0.3s ease"
+            , property "transition" "color 0.2s ease"
             ]
         ]
-        [ Html.text label ]
+        [ Html.text "Races" ]

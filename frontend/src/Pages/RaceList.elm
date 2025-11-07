@@ -4,7 +4,7 @@ import Components.Spinner as Spinner
 import Css exposing (..)
 import Endpoints exposing (loadRaces)
 import Html.Styled as Html exposing (Html)
-import Html.Styled.Attributes exposing (css)
+import Html.Styled.Attributes exposing (class, css)
 import Html.Styled.Events
 import Http
 import RemoteData exposing (RemoteData(..))
@@ -69,7 +69,8 @@ update msg model =
 
 view : Model -> Html Msg
 view model =
-    Html.div []
+    Html.div
+        []
         [ viewHeader model
         , viewContent model
         ]

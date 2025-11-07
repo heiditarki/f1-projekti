@@ -104,8 +104,10 @@ if [ ! -f "package.json" ]; then
     exit 1
 fi
 
-# Start frontend in background
-npm start &
+# Start frontend in background using elm-live
+FRONTEND_PORT=3001
+FRONTEND_HOST=127.0.0.1
+npx elm-live src/Main.elm --pushstate --host=$FRONTEND_HOST --port=$FRONTEND_PORT -- --output=main.js &
 FRONTEND_PID=$!
 
 # Wait for frontend to start
@@ -114,7 +116,7 @@ sleep 5
 
 print_success "Development environment started!"
 print_status "Backend: http://127.0.0.1:8000"
-print_status "Frontend: http://localhost:3000"
+print_status "Frontend: http://$FRONTEND_HOST:$FRONTEND_PORT"
 print_status ""
 print_status "Press Ctrl+C to stop all servers"
 

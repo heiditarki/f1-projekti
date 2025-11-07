@@ -1,0 +1,85 @@
+# flyctl launch added from .gitignore
+# Python / Backend
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.pyw
+**/*.so
+**/*.egg
+**/*.egg-info
+**/dist
+**/build
+**/venv
+**/env
+**/ENV
+**/.Python
+**/*.sqlite3
+**/*.db
+**/*.log
+**/.pytest_cache
+**/.coverage
+**/htmlcov
+
+# FastAPI / F1 specific
+**/f1_cache
+**/*.cache
+
+# Node / Frontend
+**/node_modules
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/.npm
+
+# Elm
+**/elm-stuff
+**/main.js
+**/*.elmi
+**/*.elmo
+
+# OS
+**/.DS_Store
+**/.DS_Store?
+**/._*
+**/.Spotlight-V100
+**/.Trashes
+**/ehthumbs.db
+**/Thumbs.db
+**/Desktop.ini
+
+# Editor / IDE
+**/.vscode
+**/.idea
+**/*.swp
+**/*.swo
+**/*~
+**/*.bak
+**/.project
+**/.settings
+**/.classpath
+
+# Environment variables
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Logs
+**/logs
+**/*.log
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# Temporary files
+**/tmp
+**/temp
+**/*.tmp
+
+# Elm review configuration
+**/frontend/review
+
+# Cache and temporary files
+**/*.cache
+**/.cache
+fly.toml

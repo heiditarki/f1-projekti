@@ -2,10 +2,11 @@ module Main exposing (main)
 
 import Browser
 import Browser.Navigation as Nav
+import Components.Footer as Footer
 import Components.Header as Header
 import Css exposing (..)
 import Html.Styled as Html exposing (Html)
-import Html.Styled.Attributes exposing (css)
+import Html.Styled.Attributes exposing (class, css)
 import Pages.Home as Home
 import Pages.RaceDetails as RaceDetails
 import Pages.RaceList as RaceList
@@ -166,25 +167,48 @@ view model =
     , body =
         [ Html.toUnstyled <|
             Html.div
-                [ css
+                [ class "app-background"
+                , css
                     [ minHeight (vh 100)
+                    , displayFlex
+                    , flexDirection column
                     , color (hex "#f1f5f9")
                     , fontFamilies [ "system-ui", "-apple-system", "sans-serif" ]
+                    , property "background" "linear-gradient(to bottom right, #7f1d1d, #000000, #1f2937)"
                     ]
                 ]
                 [ Header.view
                 , Html.main_
-                    [ css
-                        [ maxWidth (px 1400)
-                        , margin2 zero auto
-                        , padding (rem 2)
-                        , paddingTop (rem 6)
-                        ]
-                    ]
+                    [ css (mainAreaStyles model) ]
                     [ viewPage model ]
+                , Footer.view
                 ]
         ]
     }
+
+
+mainAreaStyles : Model -> List Css.Style
+mainAreaStyles model =
+    [ flex (int 1)
+    , padding2 (rem 0) (rem 2)
+    , paddingBottom (rem 6)
+    ]
+        ++ (if isHomePage model then
+                [ paddingTop (rem 1) ]
+
+            else
+                [ paddingTop (rem 6) ]
+           )
+
+
+isHomePage : Model -> Bool
+isHomePage model =
+    case model.route of
+        Route.Home ->
+            True
+
+        _ ->
+            False
 
 
 viewPage : Model -> Html Msg
@@ -235,8 +259,13 @@ viewNotFound =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.none
+subscriptions model =
+    case model.page of
+        HomePage homeModel ->
+            Sub.map HomeMsg (Home.subscriptions homeModel)
+
+        _ ->
+            Sub.none
 
 
 
