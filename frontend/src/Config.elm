@@ -2,4 +2,4 @@ module Config exposing (apiBaseUrl)
 
 apiBaseUrl : String
 apiBaseUrl =
-    "https://f1-backend-tarkiainen.fly.dev"
+    "http://127.0.0.1:8000"

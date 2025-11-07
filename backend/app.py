@@ -1,5 +1,8 @@
 import os
 
+from numbers import Number
+from typing import Any, Optional, cast
+
 import fastf1
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +18,15 @@ app = FastAPI()
 # CORS
 default_allowed_origins = os.getenv(
     "ALLOWED_ORIGINS",
-    "http://127.0.0.1:3001,http://localhost:3001",
+    ",".join(
+        [
+            "https://f1-projekti.vercel.app",
+            "http://127.0.0.1:5173",
+            "http://localhost:5173",
+            "http://127.0.0.1:3001",
+            "http://localhost:3001",
+        ]
+    ),
 )
 allowed_origins = [origin.strip() for origin in default_allowed_origins.split(",") if origin.strip()]
 
@@ -116,12 +127,30 @@ def safe_str(value):
     return str(value)
 
 
+def to_optional_int(value: Any) -> Optional[int]:
+    if value is None or pd.isna(value):
+        return None
+
+    if isinstance(value, Number):
+        return int(value)
+
+    if isinstance(value, str):
+        stripped = value.strip()
+        if not stripped:
+            return None
+        try:
+            return int(stripped)
+        except ValueError:
+            numeric_value = pd.to_numeric(stripped, errors="coerce")
+            if numeric_value is None or pd.isna(numeric_value):
+                return None
+            return int(numeric_value)
+
+    return None
+
+
 def extract_event_details(event_row, fallback_year):
-    round_number = event_row.get("RoundNumber") if event_row is not None else None
-    if pd.notna(round_number):
-        round_number = int(round_number)
-    else:
-        round_number = None
+    round_number = to_optional_int(event_row.get("RoundNumber") if event_row is not None else None)
 
     race_time = normalize_datetime(event_row.get("Session5DateUtc"))
 
@@ -158,21 +187,28 @@ def get_next_race():
         except Exception:
             continue
 
-        if schedule is None or schedule.empty:
+        if schedule is None:
+            continue
+
+        schedule_df = cast(pd.DataFrame, schedule)
+
+        if schedule_df.empty:
             continue
 
         # Ensure we work with a copy to avoid SettingWithCopy warnings
-        upcoming = schedule.copy()
+        upcoming: pd.DataFrame = schedule_df.copy()
 
         # Filter valid rounds (ignore testing etc.)
         if "RoundNumber" in upcoming.columns:
-            upcoming = upcoming[pd.to_numeric(upcoming["RoundNumber"], errors="coerce") >= 1]
+            round_numbers = cast(pd.Series, pd.to_numeric(upcoming["RoundNumber"], errors="coerce"))
+            valid_round_mask = cast(pd.Series, round_numbers.ge(1)).fillna(False)
+            upcoming = upcoming[valid_round_mask]
 
         if "Session5DateUtc" not in upcoming.columns:
             continue
 
         # Normalize race date
-        upcoming["Session5DateUtc"] = upcoming["Session5DateUtc"].apply(normalize_datetime)
+        upcoming.loc[:, "Session5DateUtc"] = upcoming["Session5DateUtc"].apply(normalize_datetime)
 
         # Keep events with valid race datetime
         upcoming = upcoming[upcoming["Session5DateUtc"].notna()]
@@ -181,7 +217,7 @@ def get_next_race():
             continue
 
         # Separate upcoming and past events
-        upcoming_events = upcoming[upcoming["Session5DateUtc"] >= now]
+        upcoming_events = cast(pd.DataFrame, upcoming[upcoming["Session5DateUtc"] >= now])
 
         if not upcoming_events.empty:
             next_event = upcoming_events.sort_values("Session5DateUtc").iloc[0]
@@ -190,7 +226,10 @@ def get_next_race():
                 return details
 
         # If no future events, but we might be during race (small negative delta)
-        just_started = upcoming[upcoming["Session5DateUtc"] >= now - pd.Timedelta(hours=3)]
+        just_started = cast(
+            pd.DataFrame,
+            upcoming[upcoming["Session5DateUtc"] >= now - pd.Timedelta(hours=3)],
+        )
         if not just_started.empty:
             current_event = just_started.sort_values("Session5DateUtc").iloc[0]
             details = extract_event_details(current_event, year)

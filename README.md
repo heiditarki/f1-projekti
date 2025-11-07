@@ -1,7 +1,15 @@
 # F1 Project
 
+![F1 Dashboard Front Page](frontend/docs/frontpage.png)
+
 A Formula 1 data visualization application with Elm frontend and FastAPI
 backend.
+
+## Screenshots
+
+![Race List Overview](frontend/docs/frontpage.png)
+![Lap Position Visualisation](frontend/docs/position.png)
+![Race Details View](frontend/docs/details.png)
 
 ## Quick Start
 
@@ -25,6 +33,9 @@ cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+export ALLOWED_ORIGINS="http://localhost:5173"
+# Optional but recommended for low-memory environments
+export FASTF1_NO_CACHING=1
 uvicorn app:app --host 127.0.0.1 --port 8000 --reload
 ```
 
@@ -34,7 +45,8 @@ To deploy on Fly.io:
 cd backend
 fly auth login
 fly launch --name f1-backend-tarkiainen --copy-config --region ams --no-deploy
-fly secrets set ALLOWED_ORIGINS="https://f1-dashboard.tarkiainen.vercel.app"
+fly secrets set ALLOWED_ORIGINS="https://f1-projekti.vercel.app,http://localhost:5173"
+fly secrets set FASTF1_NO_CACHING=1
 fly deploy
 ```
 
@@ -64,9 +76,11 @@ http://127.0.0.1:3001.
 ## Deployment & Security
 
 - Set `ALLOWED_ORIGINS` (comma-separated) before starting the backend to
-  restrict CORS, for example:
+  restrict CORS. When developing locally the frontend should be accessed via
+  `http://localhost:5173` (or `http://127.0.0.1:5173`) so it remains on the
+  allow list.
   ```bash
-  export ALLOWED_ORIGINS="http://127.0.0.1:3001,https://f1-backend.tarkiainen"
+  export ALLOWED_ORIGINS="https://f1-projekti.vercel.app,http://localhost:5173"
   ```
 - When deploying to Vercel the provided `vercel.json` adds security headers
   (HSTS, X-Frame-Options, etc.). Adjust the file if you need additional policies
@@ -75,8 +89,11 @@ http://127.0.0.1:3001.
   as environment variables in Vercel or your hosting provider.
 - The build script reads `API_BASE_URL` (defaults to `http://127.0.0.1:8000`).
   On Vercel set it to your deployed backend URL (e.g.
-  `https://f1-backend.tarkiainen`) so `Config.elm` is generated with the correct
-  endpoint.
+  `https://f1-backend-tarkiainen.fly.dev`) so `Config.elm` is generated with the
+  correct endpoint.
+- In constrained environments (e.g. Fly’s smaller machine classes) consider
+  disabling FastF1 caching with `FASTF1_NO_CACHING=1` to avoid the backend
+  exceeding its memory budget.
 
 ## Development
 

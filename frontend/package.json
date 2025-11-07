@@ -6,7 +6,7 @@
   "scripts": {
     "prestart": "node scripts/generate-config.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "elm-live src/Main.elm --pushstate --host=127.0.0.1 --port=3001 -- --output=main.js",
+    "start": "elm-live src/Main.elm --pushstate --host=0.0.0.0 --port=5173 -- --output=main.js",
     "prebuild": "node scripts/generate-config.js",
     "build": "elm make src/Main.elm --output=main.js --optimize"
   },
