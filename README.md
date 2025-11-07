@@ -7,9 +7,8 @@ backend.
 
 ## Screenshots
 
-![Race List Overview](frontend/docs/frontpage.png)
-![Lap Position Visualisation](frontend/docs/position.png)
 ![Race Details View](frontend/docs/details.png)
+![Lap Position Visualisation](frontend/docs/position.png)
 
 ## Quick Start
 
