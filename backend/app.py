@@ -1,4 +1,5 @@
 import os
+
 import fastf1
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,11 +13,19 @@ fastf1.Cache.enable_cache(cache_dir)
 app = FastAPI()
 
 # CORS
+default_allowed_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://127.0.0.1:3001,http://localhost:3001",
+)
+allowed_origins = [origin.strip() for origin in default_allowed_origins.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET"],
+    allow_headers=["Accept", "Content-Type"],
+    max_age=600,
 )
 
 
@@ -31,6 +40,163 @@ def format_timedelta(td):
     seconds = total_seconds % 60
 
     return f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
+
+
+def get_countdown_components(event_time_utc: pd.Timestamp):
+    now = pd.Timestamp.now(tz="UTC")
+
+    if pd.isna(event_time_utc):
+        return None
+
+    # Ensure event_time_utc is timezone-aware in UTC
+    if event_time_utc.tzinfo is None:
+        event_time_utc = event_time_utc.tz_localize("UTC")
+    else:
+        event_time_utc = event_time_utc.tz_convert("UTC")
+
+    delta = event_time_utc - now
+
+    if delta.total_seconds() < 0:
+        return {
+            "status": "started",
+            "totalSeconds": 0,
+            "days": 0,
+            "hours": 0,
+            "minutes": 0,
+            "seconds": 0,
+        }
+
+    components = delta.components
+
+    # pandas components may have microseconds; account for rounding
+    seconds = int(round(components.seconds + components.microseconds / 1_000_000))
+    minutes, seconds = divmod(seconds, 60)
+    hours = (components.hours + components.days * 24) + minutes // 60
+    minutes = minutes % 60
+    days, hours = divmod(hours, 24)
+
+    return {
+        "status": "upcoming",
+        "totalSeconds": int(delta.total_seconds()),
+        "days": int(days),
+        "hours": int(hours),
+        "minutes": int(minutes),
+        "seconds": int(seconds),
+    }
+
+
+def normalize_datetime(value):
+    if value is None or pd.isna(value):
+        return None
+
+    if isinstance(value, pd.Timestamp):
+        timestamp = value
+    else:
+        timestamp = pd.to_datetime(value, utc=True, errors="coerce")
+
+    if pd.isna(timestamp):
+        return None
+
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.tz_localize("UTC")
+    else:
+        timestamp = timestamp.tz_convert("UTC")
+
+    return timestamp
+
+
+def session_iso(event_row, key):
+    ts = normalize_datetime(event_row.get(key))
+    return ts.isoformat() if ts is not None else None
+
+
+def safe_str(value):
+    if value is None or pd.isna(value):
+        return None
+    return str(value)
+
+
+def extract_event_details(event_row, fallback_year):
+    round_number = event_row.get("RoundNumber") if event_row is not None else None
+    if pd.notna(round_number):
+        round_number = int(round_number)
+    else:
+        round_number = None
+
+    race_time = normalize_datetime(event_row.get("Session5DateUtc"))
+
+    return {
+        "year": int(event_row.get("Year", fallback_year)),
+        "round": round_number,
+        "raceName": safe_str(event_row.get("EventName") or event_row.get("OfficialEventName")),
+        "officialName": safe_str(event_row.get("OfficialEventName") or event_row.get("EventName")),
+        "circuit": safe_str(event_row.get("Location")),
+        "country": safe_str(event_row.get("Country")),
+        "dateUtc": race_time.isoformat() if race_time is not None else None,
+        "sessions": {
+            "fp1": session_iso(event_row, "Session1DateUtc"),
+            "fp2": session_iso(event_row, "Session2DateUtc"),
+            "fp3": session_iso(event_row, "Session3DateUtc"),
+            "qualifying": session_iso(event_row, "Session4DateUtc"),
+            "race": race_time.isoformat() if race_time is not None else None,
+        },
+        "countdown": get_countdown_components(race_time) if race_time is not None else None,
+    }
+
+
+@app.get("/next-race")
+def get_next_race():
+    """Return the next scheduled race with countdown information."""
+
+    now = pd.Timestamp.now(tz="UTC")
+    start_year = now.year
+
+    # Check current year and next year as a fallback (if schedule already finished)
+    for year in range(start_year, start_year + 2):
+        try:
+            schedule = fastf1.get_event_schedule(year)
+        except Exception:
+            continue
+
+        if schedule is None or schedule.empty:
+            continue
+
+        # Ensure we work with a copy to avoid SettingWithCopy warnings
+        upcoming = schedule.copy()
+
+        # Filter valid rounds (ignore testing etc.)
+        if "RoundNumber" in upcoming.columns:
+            upcoming = upcoming[pd.to_numeric(upcoming["RoundNumber"], errors="coerce") >= 1]
+
+        if "Session5DateUtc" not in upcoming.columns:
+            continue
+
+        # Normalize race date
+        upcoming["Session5DateUtc"] = upcoming["Session5DateUtc"].apply(normalize_datetime)
+
+        # Keep events with valid race datetime
+        upcoming = upcoming[upcoming["Session5DateUtc"].notna()]
+
+        if upcoming.empty:
+            continue
+
+        # Separate upcoming and past events
+        upcoming_events = upcoming[upcoming["Session5DateUtc"] >= now]
+
+        if not upcoming_events.empty:
+            next_event = upcoming_events.sort_values("Session5DateUtc").iloc[0]
+            details = extract_event_details(next_event, year)
+            if details["countdown"] is not None:
+                return details
+
+        # If no future events, but we might be during race (small negative delta)
+        just_started = upcoming[upcoming["Session5DateUtc"] >= now - pd.Timedelta(hours=3)]
+        if not just_started.empty:
+            current_event = just_started.sort_values("Session5DateUtc").iloc[0]
+            details = extract_event_details(current_event, year)
+            return details
+
+    raise HTTPException(status_code=404, detail="No upcoming races found")
 
 
 @app.get("/races/{year}")
