@@ -1,0 +1,2 @@
+0 3 * * * cd /app && python scripts/clear_fastf1_cache.py
+

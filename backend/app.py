@@ -1,6 +1,8 @@
 import os
 
+from collections import OrderedDict
 from numbers import Number
+from threading import Lock
 from typing import Any, Optional, cast
 
 import fastf1
@@ -23,12 +25,16 @@ default_allowed_origins = os.getenv(
             "https://f1-projekti.vercel.app",
             "http://127.0.0.1:5173",
             "http://localhost:5173",
+            "http://0.0.0.0:5173",
             "http://127.0.0.1:3001",
             "http://localhost:3001",
+            "http://0.0.0.0:3001",
         ]
     ),
 )
-allowed_origins = [origin.strip() for origin in default_allowed_origins.split(",") if origin.strip()]
+allowed_origins = [
+    origin.strip() for origin in default_allowed_origins.split(",") if origin.strip()
+]
 
 app.add_middleware(
     CORSMiddleware,
@@ -38,6 +44,99 @@ app.add_middleware(
     allow_headers=["Accept", "Content-Type"],
     max_age=600,
 )
+
+
+SESSION_CACHE_SIZE = int(os.getenv("SESSION_CACHE_SIZE", "6"))
+_session_cache_lock = Lock()
+_session_cache: "OrderedDict[tuple[int, int], Any]" = OrderedDict()
+_session_load_locks: dict[tuple[int, int], Lock] = {}
+
+
+def _normalize_cache_key(year: int, round_num: int) -> tuple[int, int]:
+    return (int(year), int(round_num))
+
+
+def _store_session_in_cache(key: tuple[int, int], session: Any) -> Any:
+    with _session_cache_lock:
+        if key in _session_cache:
+            _session_cache.move_to_end(key)
+            return _session_cache[key]
+
+        _session_cache[key] = session
+        _session_cache.move_to_end(key)
+
+        while len(_session_cache) > SESSION_CACHE_SIZE:
+            _session_cache.popitem(last=False)
+
+        return session
+
+
+def get_cached_session(year: int, round_num: int) -> Any:
+    key = _normalize_cache_key(year, round_num)
+
+    with _session_cache_lock:
+        cached = _session_cache.get(key)
+        if cached is not None:
+            _session_cache.move_to_end(key)
+            return cached
+        load_lock = _session_load_locks.get(key)
+        if load_lock is None:
+            load_lock = Lock()
+            _session_load_locks[key] = load_lock
+
+    try:
+        with load_lock:
+            with _session_cache_lock:
+                cached = _session_cache.get(key)
+                if cached is not None:
+                    _session_cache.move_to_end(key)
+                    return cached
+
+            session = fastf1.get_session(year, round_num, "R")
+            session.load(
+                laps=True,
+                telemetry=False,
+                weather=True,
+                messages=False,
+            )
+
+            with _session_cache_lock:
+                existing = _session_cache.get(key)
+                if existing is not None:
+                    _session_cache.move_to_end(key)
+                    return existing
+
+            return _store_session_in_cache(key, session)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error loading race session {year}-{round_num}: {exc}",
+        ) from exc
+    finally:
+        with _session_cache_lock:
+            current_lock = _session_load_locks.get(key)
+            if current_lock is load_lock and not current_lock.locked():
+                _session_load_locks.pop(key, None)
+
+
+def event_get(event: Any, key: str, default: Any = None) -> Any:
+    if event is None:
+        return default
+
+    if hasattr(event, key):
+        value = getattr(event, key)
+        if value is not None:
+            return value
+
+    if isinstance(event, dict):
+        return event.get(key, default)
+
+    if isinstance(event, pd.Series) and key in event.index:
+        return event.get(key, default)
+
+    return default
 
 
 def format_timedelta(td):
@@ -150,15 +249,21 @@ def to_optional_int(value: Any) -> Optional[int]:
 
 
 def extract_event_details(event_row, fallback_year):
-    round_number = to_optional_int(event_row.get("RoundNumber") if event_row is not None else None)
+    round_number = to_optional_int(
+        event_row.get("RoundNumber") if event_row is not None else None
+    )
 
     race_time = normalize_datetime(event_row.get("Session5DateUtc"))
 
     return {
         "year": int(event_row.get("Year", fallback_year)),
         "round": round_number,
-        "raceName": safe_str(event_row.get("EventName") or event_row.get("OfficialEventName")),
-        "officialName": safe_str(event_row.get("OfficialEventName") or event_row.get("EventName")),
+        "raceName": safe_str(
+            event_row.get("EventName") or event_row.get("OfficialEventName")
+        ),
+        "officialName": safe_str(
+            event_row.get("OfficialEventName") or event_row.get("EventName")
+        ),
         "circuit": safe_str(event_row.get("Location")),
         "country": safe_str(event_row.get("Country")),
         "dateUtc": race_time.isoformat() if race_time is not None else None,
@@ -169,7 +274,9 @@ def extract_event_details(event_row, fallback_year):
             "qualifying": session_iso(event_row, "Session4DateUtc"),
             "race": race_time.isoformat() if race_time is not None else None,
         },
-        "countdown": get_countdown_components(race_time) if race_time is not None else None,
+        "countdown": (
+            get_countdown_components(race_time) if race_time is not None else None
+        ),
     }
 
 
@@ -200,15 +307,21 @@ def get_next_race():
 
         # Filter valid rounds (ignore testing etc.)
         if "RoundNumber" in upcoming.columns:
-            round_numbers = cast(pd.Series, pd.to_numeric(upcoming["RoundNumber"], errors="coerce"))
+            round_numbers = cast(
+                pd.Series, pd.to_numeric(upcoming["RoundNumber"], errors="coerce")
+            )
             valid_round_mask = cast(pd.Series, round_numbers.ge(1)).fillna(False)
             upcoming = upcoming[valid_round_mask]
 
         if "Session5DateUtc" not in upcoming.columns:
             continue
 
-        # Normalize race date
-        upcoming.loc[:, "Session5DateUtc"] = upcoming["Session5DateUtc"].apply(normalize_datetime)
+        # Normalize race date while keeping timezone-aware dtype
+        normalized_dates = upcoming["Session5DateUtc"].apply(normalize_datetime)
+        normalized_dates = pd.DatetimeIndex(normalized_dates).tz_convert("UTC")
+        upcoming = upcoming.drop(columns=["Session5DateUtc"]).assign(
+            Session5DateUtc=normalized_dates
+        )
 
         # Keep events with valid race datetime
         upcoming = upcoming[upcoming["Session5DateUtc"].notna()]
@@ -217,7 +330,9 @@ def get_next_race():
             continue
 
         # Separate upcoming and past events
-        upcoming_events = cast(pd.DataFrame, upcoming[upcoming["Session5DateUtc"] >= now])
+        upcoming_events = cast(
+            pd.DataFrame, upcoming[upcoming["Session5DateUtc"] >= now]
+        )
 
         if not upcoming_events.empty:
             next_event = upcoming_events.sort_values("Session5DateUtc").iloc[0]
@@ -280,15 +395,16 @@ def get_race_overview(year: int, round_num: int):
         if round_num < 1:
             raise HTTPException(status_code=400, detail="Round must be 1 or greater")
 
-        # Get event info from schedule
-        schedule = fastf1.get_event_schedule(year)
-        event = schedule[schedule["RoundNumber"] == round_num].iloc[0]
+        # Load the race session once and reuse for all detailed endpoints
+        session = get_cached_session(year, round_num)
+        event = getattr(session, "event", None)
 
-        # Load the race session
-        session = fastf1.get_session(year, round_num, "R")
-
-        # IMPORTANT: Must call load() before accessing any session data
-        session.load()
+        if event is None:
+            schedule = fastf1.get_event_schedule(year)
+            matching_event = schedule[schedule["RoundNumber"] == round_num]
+            if matching_event.empty:
+                raise HTTPException(status_code=404, detail="Race not found")
+            event = matching_event.iloc[0]
 
         # Get weather data - check if it exists first
         weather = None
@@ -366,16 +482,14 @@ def get_race_overview(year: int, round_num: int):
         if circuit_length and total_laps:
             race_distance = round(circuit_length * total_laps, 2)
 
+        event_date = normalize_datetime(event_get(event, "Session5DateUtc"))
+
         return {
             "round": round_num,
-            "raceName": str(event["EventName"]),
-            "circuitName": str(event["Location"]),
-            "country": str(event["Country"]),
-            "date": (
-                str(event["Session5DateUtc"].date())
-                if pd.notna(event.get("Session5DateUtc"))
-                else "NaT"
-            ),
+            "raceName": safe_str(event_get(event, "EventName")),
+            "circuitName": safe_str(event_get(event, "Location")),
+            "country": safe_str(event_get(event, "Country")),
+            "date": event_date.date().isoformat() if event_date is not None else None,
             "totalLaps": total_laps,
             "raceDuration": race_time,
             "circuitLength": circuit_length,
@@ -396,12 +510,8 @@ def get_driver_order(year: int, round: int):
         if round < 1:
             raise HTTPException(status_code=400, detail="Round must be 1 or greater")
 
-        # Load the race session
-        session = fastf1.get_session(year, round, "R")
-
-        # Load session data with laps - this ensures all data including results are loaded
-        # The laps parameter ensures complete data loading
-        session.load(laps=True, telemetry=False, weather=False, messages=False)
+        # Load the race session using shared cache
+        session = get_cached_session(year, round)
 
         # Access results after loading - this should now work
         try:
@@ -491,7 +601,9 @@ def get_driver_order(year: int, round: int):
         return {
             "year": year,
             "round": round,
-            "raceName": str(session.event["EventName"]),
+            "raceName": safe_str(
+                event_get(getattr(session, "event", None), "EventName")
+            ),
             "drivers": drivers,
         }
 
@@ -515,8 +627,7 @@ def get_position_changes(year: int, round: int):
         if round < 1:
             raise HTTPException(status_code=400, detail="Round must be 1 or greater")
 
-        session = fastf1.get_session(year, round, "R")
-        session.load()
+        session = get_cached_session(year, round)
 
         if not hasattr(session, "laps") or session.laps is None or session.laps.empty:
             raise HTTPException(status_code=404, detail="No lap data found")
@@ -600,7 +711,9 @@ def get_position_changes(year: int, round: int):
         return {
             "year": year,
             "round": round,
-            "raceName": str(session.event["EventName"]),
+            "raceName": safe_str(
+                event_get(getattr(session, "event", None), "EventName")
+            ),
             "totalLaps": total_laps,
             "drivers": drivers_data,
         }
@@ -622,9 +735,8 @@ def get_race_highlights(year: int, round: int):
         if round < 1:
             raise HTTPException(status_code=400, detail="Round must be 1 or greater")
 
-        # Load the race session
-        session = fastf1.get_session(year, round, "R")
-        session.load(laps=True, telemetry=False, weather=False, messages=False)
+        # Load the race session using shared cache
+        session = get_cached_session(year, round)
 
         # Get results for winner
         results = session.results
@@ -799,7 +911,9 @@ def get_race_highlights(year: int, round: int):
         return {
             "year": year,
             "round": round,
-            "raceName": str(session.event["EventName"]),
+            "raceName": safe_str(
+                event_get(getattr(session, "event", None), "EventName")
+            ),
             "winner": {
                 "driverCode": (
                     str(winner["Abbreviation"])

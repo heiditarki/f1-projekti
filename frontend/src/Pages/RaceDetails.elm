@@ -7,7 +7,7 @@ import Components.Spinner as Spinner
 import Css exposing (..)
 import Endpoints
 import Html.Styled as Html exposing (Html)
-import Html.Styled.Attributes exposing (class, css)
+import Html.Styled.Attributes exposing (css)
 import Html.Styled.Events
 import Http
 import RemoteData exposing (RemoteData(..))

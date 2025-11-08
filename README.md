@@ -1,5 +1,10 @@
 # F1 Project
 
+Live demo: [https://f1-projekti.vercel.app/](https://f1-projekti.vercel.app/)\
+_The backend may be paused between demos. If the site looks empty, please ping
+me or start the backend locally (instructions below) and refresh so the FastF1
+cache can warm up._
+
 ![F1 Dashboard Front Page](frontend/docs/frontpage.png)
 
 A Formula 1 data visualization application with Elm frontend and FastAPI
@@ -7,8 +12,9 @@ backend.
 
 ## Screenshots
 
-![Race Details View](frontend/docs/details.png)
-![Lap Position Visualisation](frontend/docs/position.png)
+![Race List View](frontend/docs/listView.png)
+![Race Details View](frontend/docs/details1.png)
+![Race Details View](frontend/docs/details2.png)
 
 ## Quick Start
 
