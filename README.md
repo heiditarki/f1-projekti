@@ -1,9 +1,8 @@
 # F1 Project
 
 Live demo: [https://f1-projekti.vercel.app/](https://f1-projekti.vercel.app/)\
-_The backend may be paused between demos. If the site looks empty, please ping
-me or start the backend locally (instructions below) and refresh so the FastF1
-cache can warm up._
+_The backend may be paused. If the site looks empty, you can start the backend
+locally (instructions below) and refresh so the FastF1 cache can warm up._
 
 ![F1 Dashboard Front Page](frontend/docs/frontpage.png)
 
@@ -84,10 +83,8 @@ http://127.0.0.1:3001.
   F1 static API, and Ergast). If all upstream sources are unreachable the
   backend will return `503` for `/next-race`, and the frontend will display a
   “Live F1 schedule data is temporarily unavailable” message.
-- These outages are external. No action is needed on the frontend—just wait for
-  the upstream services to recover, then refresh. For persistent issues verify
-  outbound connectivity from the deployment environment (Fly.io, local machine,
-  etc.).
+- These outages are external. Just wait the upstream services to recover, then
+  refresh.
 
 ## Deployment & Security
 
