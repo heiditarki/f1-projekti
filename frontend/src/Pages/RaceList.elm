@@ -4,7 +4,7 @@ import Components.Spinner as Spinner
 import Css exposing (..)
 import Endpoints exposing (loadRaces)
 import Html.Styled as Html exposing (Html)
-import Html.Styled.Attributes exposing (css)
+import Html.Styled.Attributes as Attr exposing (css)
 import Html.Styled.Events
 import Http
 import RemoteData exposing (RemoteData(..))
@@ -70,7 +70,7 @@ update msg model =
 view : Model -> Html Msg
 view model =
     Html.div
-        []
+        [ Attr.class "race-list-page" ]
         [ viewHeader model
         , viewContent model
         ]
@@ -79,7 +79,8 @@ view model =
 viewHeader : Model -> Html Msg
 viewHeader model =
     Html.div
-        [ css
+        [ Attr.class "race-list__header"
+        , css
             [ marginBottom (rem 2)
             ]
         ]
@@ -146,7 +147,8 @@ viewError error =
 viewRaceList : Int -> List Race -> Html msg
 viewRaceList year races =
     Html.div
-        [ css
+        [ Attr.class "race-card-list"
+        , css
             [ displayFlex
             , flexDirection column
             , property "gap" "1rem"
@@ -159,6 +161,7 @@ viewRaceCard : Int -> Race -> Html msg
 viewRaceCard year race =
     Html.a
         [ Route.href (Route.RaceDetail year (String.fromInt race.round))
+        , Attr.class "race-card"
         , css
             [ backgroundColor (rgba 30 20 40 0.4)
             , property "backdrop-filter" "blur(10px)"
@@ -180,14 +183,16 @@ viewRaceCard year race =
             ]
         ]
         [ Html.div
-            [ css
+            [ Attr.class "race-card__summary"
+            , css
                 [ displayFlex
                 , alignItems center
                 , property "gap" "1.5rem"
                 ]
             ]
             [ Html.div
-                [ css
+                [ Attr.class "race-card__round"
+                , css
                     [ color (hex "#ef4444")
                     , fontSize (rem 0.9)
                     , fontWeight bold
@@ -197,7 +202,8 @@ viewRaceCard year race =
                 [ Html.text ("Round " ++ String.fromInt race.round) ]
             , Html.div []
                 [ Html.h3
-                    [ css
+                    [ Attr.class "race-card__title"
+                    , css
                         [ fontSize (rem 1.2)
                         , fontWeight (int 600)
                         , marginBottom (rem 0.3)
@@ -215,7 +221,8 @@ viewRaceCard year race =
                 ]
             ]
         , Html.div
-            [ css
+            [ Attr.class "race-card__arrow"
+            , css
                 [ color (hex "#a0a8b8")
                 , fontSize (rem 1.2)
                 ]
@@ -227,10 +234,13 @@ viewRaceCard year race =
 viewYearTabs : Int -> Html Msg
 viewYearTabs selectedYear =
     Html.div
-        [ css
+        [ Attr.class "race-year-tabs"
+        , css
             [ displayFlex
             , property "gap" "0.5rem"
             , marginBottom (rem 1)
+            , flexWrap wrap
+            , justifyContent center
             ]
         ]
         (List.map (viewYearTab selectedYear) [ 2025, 2024, 2023, 2022, 2021 ])

@@ -2,14 +2,15 @@ module Components.Header exposing (view)
 
 import Css exposing (..)
 import Html.Styled as Html exposing (Html)
-import Html.Styled.Attributes exposing (css)
+import Html.Styled.Attributes as Attr exposing (css)
 import Route
 
 
 view : Html msg
 view =
     Html.nav
-        [ css
+        [ Attr.class "site-nav"
+        , css
             [ backgroundColor (hex "#000000")
             , padding2 (rem 1.2) (rem 3)
             , position fixed
@@ -20,7 +21,8 @@ view =
             ]
         ]
         [ Html.div
-            [ css
+            [ Attr.class "site-nav__inner"
+            , css
                 [ maxWidth (px 1400)
                 , margin2 zero auto
                 , displayFlex
@@ -38,6 +40,7 @@ viewLogo : Html msg
 viewLogo =
     Html.a
         [ Route.href Route.Home
+        , Attr.class "site-nav__logo"
         , css
             [ displayFlex
             , alignItems baseline
@@ -70,6 +73,7 @@ viewNavLink : Html msg
 viewNavLink =
     Html.a
         [ Route.href (Route.RaceOverview 2025)
+        , Attr.class "site-nav__link"
         , css
             [ color (hex "#ffffff")
             , textDecoration none

@@ -78,6 +78,17 @@ http://127.0.0.1:3001.
 - `GET /race/{year}/{round}/highlights` – Curated highlights, key moments, and
   context
 
+## Upstream Data Availability
+
+- The backend relies on FastF1’s aggregated schedule feeds (GitHub, the official
+  F1 static API, and Ergast). If all upstream sources are unreachable the
+  backend will return `503` for `/next-race`, and the frontend will display a
+  “Live F1 schedule data is temporarily unavailable” message.
+- These outages are external. No action is needed on the frontend—just wait for
+  the upstream services to recover, then refresh. For persistent issues verify
+  outbound connectivity from the deployment environment (Fly.io, local machine,
+  etc.).
+
 ## Deployment & Security
 
 - Set `ALLOWED_ORIGINS` (comma-separated) before starting the backend to

@@ -180,7 +180,8 @@ tickNextRace remoteData =
 viewHero : Html msg
 viewHero =
     Html.section
-        [ css
+        [ Attr.class "hero-section"
+        , css
             [ position relative
             , minHeight (vh 100)
             , displayFlex
@@ -192,7 +193,8 @@ viewHero =
             ]
         ]
         [ Html.div
-            [ css
+            [ Attr.class "hero-section__content"
+            , css
                 [ textAlign center
                 , padding (rem 2)
                 , width (pct 100)
@@ -202,12 +204,13 @@ viewHero =
                 ]
             ]
             [ Html.h1
-                [ css
+                [ Attr.class "hero-section__title"
+                , css
                     [ fontWeight bold
                     , marginBottom (rem 1)
                     , letterSpacing (px 2)
                     , property "text-shadow" "0 4px 30px rgba(239, 68, 68, 0.6)"
-                    , property "font-size" "clamp(3.5rem, 8vw, 6rem)"
+                    , property "font-size" "clamp(2.4rem, 8vw, 5.5rem)"
                     , color (hex "#ffffff")
                     ]
                 ]
@@ -216,10 +219,11 @@ viewHero =
                 , Html.text "DASHBOARD"
                 ]
             , Html.div
-                [ css
-                    [ fontSize (rem 1.3)
+                [ Attr.class "hero-section__tagline"
+                , css
+                    [ property "font-size" "clamp(0.85rem, 3vw, 1.1rem)"
                     , color (hex "#aaaaaa")
-                    , letterSpacing (px 4)
+                    , property "letter-spacing" "0.35rem"
                     , textTransform uppercase
                     , marginTop (rem 2)
                     , alignSelf center
@@ -227,9 +231,10 @@ viewHero =
                 ]
                 [ Html.text "All Seasons" ]
             , Html.div
-                [ css
-                    [ marginTop (rem 15)
-                    , fontSize (rem 2)
+                [ Attr.class "hero-section__scroll"
+                , css
+                    [ property "margin-top" "clamp(4rem, 12vh, 10rem)"
+                    , property "font-size" "clamp(1.5rem, 4vw, 2rem)"
                     , color (hex "#ef4444")
                     , property "animation" "bounce 2s ease-in-out infinite"
                     , cursor pointer
@@ -253,7 +258,8 @@ viewHero =
 viewGlassCard : Html msg
 viewGlassCard =
     Html.section
-        [ css
+        [ Attr.class "glass-card-section"
+        , css
             [ padding2 (rem 6) (rem 2)
             , displayFlex
             , justifyContent center
@@ -261,7 +267,8 @@ viewGlassCard =
             ]
         ]
         [ Html.div
-            [ css
+            [ Attr.class "glass-card"
+            , css
                 [ maxWidth (px 900)
                 , width (pct 90)
                 , backgroundColor (rgba 255 255 255 0.05)

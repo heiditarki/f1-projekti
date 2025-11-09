@@ -174,12 +174,13 @@ view model =
                     , flexDirection column
                     , color (hex "#f1f5f9")
                     , fontFamilies [ "system-ui", "-apple-system", "sans-serif" ]
-                    , property "background" "linear-gradient(to bottom right, #7f1d1d, #000000, #1f2937)"
                     ]
                 ]
                 [ Header.view
                 , Html.main_
-                    [ css (mainAreaStyles model) ]
+                    [ class "page-main"
+                    , css (mainAreaStyles model)
+                    ]
                     [ viewPage model ]
                 , Footer.view
                 ]

@@ -1,3 +1,4 @@
+import logging
 import os
 
 from collections import OrderedDict
@@ -14,6 +15,8 @@ import pandas as pd
 cache_dir = "f1_cache"
 os.makedirs(cache_dir, exist_ok=True)
 fastf1.Cache.enable_cache(cache_dir)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -288,10 +291,24 @@ def get_next_race():
     start_year = now.year
 
     # Check current year and next year as a fallback (if schedule already finished)
+    schedule_loaded = False
+    upstream_errors: list[str] = []
+
     for year in range(start_year, start_year + 2):
         try:
             schedule = fastf1.get_event_schedule(year)
-        except Exception:
+            schedule_loaded = True
+        except ValueError as exc:
+            upstream_errors.append(f"{year}: {exc}")
+            logger.warning(
+                "Upstream schedule unavailable for %s: %s", year, exc, exc_info=exc
+            )
+            continue
+        except Exception as exc:
+            upstream_errors.append(f"{year}: {exc}")
+            logger.warning(
+                "Unexpected error loading schedule for %s", year, exc_info=exc
+            )
             continue
 
         if schedule is None:
@@ -349,6 +366,12 @@ def get_next_race():
             current_event = just_started.sort_values("Session5DateUtc").iloc[0]
             details = extract_event_details(current_event, year)
             return details
+
+    if not schedule_loaded and upstream_errors:
+        raise HTTPException(
+            status_code=503,
+            detail="Temporarily unable to load schedule from F1 data providers.",
+        )
 
     raise HTTPException(status_code=404, detail="No upcoming races found")
 

@@ -16,7 +16,18 @@ httpErrorToString error =
             "Network error - is the API running?"
 
         Http.BadStatus status ->
-            "Bad status: " ++ String.fromInt status
+            case status of
+                503 ->
+                    "Live F1 schedule data is temporarily unavailable. Please try again shortly."
+
+                502 ->
+                    "Upstream F1 data services are currently unreachable."
+
+                404 ->
+                    "Next race data is not available right now. Please check back soon."
+
+                _ ->
+                    "Unexpected response from the API (status " ++ String.fromInt status ++ ")."
 
         Http.BadBody message ->
             "Bad body: " ++ message

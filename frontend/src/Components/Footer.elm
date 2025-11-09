@@ -8,16 +8,21 @@ import Html.Styled.Attributes as Attr exposing (css)
 view : Html msg
 view =
     Html.footer
-        [ css
+        [ Attr.class "site-footer"
+        , css
             [ backgroundColor (hex "#000000")
             , borderTop3 (px 1) solid (hex "#1f1f1f")
             , padding2 (rem 2) (rem 3)
             , marginTop auto
+            , width (pct 100)
+            , boxSizing borderBox
             ]
         ]
         [ Html.div
-            [ css
+            [ Attr.class "site-footer__inner"
+            , css
                 [ maxWidth (px 1400)
+                , width (pct 100)
                 , margin2 zero auto
                 , displayFlex
                 , justifyContent spaceBetween
@@ -29,7 +34,8 @@ view =
                 ]
             ]
             [ Html.div
-                [ css
+                [ Attr.class "site-footer__intro"
+                , css
                     [ displayFlex
                     , alignItems center
                     , property "gap" "0.5rem"
@@ -50,7 +56,8 @@ view =
                     [ Html.text "Heidi Tarkiainen" ]
                 ]
             , Html.div
-                [ css
+                [ Attr.class "site-footer__links"
+                , css
                     [ displayFlex
                     , alignItems center
                     , property "gap" "0.6rem"

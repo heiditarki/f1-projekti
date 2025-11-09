@@ -7,7 +7,7 @@ import Components.Spinner as Spinner
 import Css exposing (..)
 import Endpoints
 import Html.Styled as Html exposing (Html)
-import Html.Styled.Attributes exposing (css)
+import Html.Styled.Attributes as Attr exposing (css)
 import Html.Styled.Events
 import Http
 import RemoteData exposing (RemoteData(..))
@@ -162,10 +162,11 @@ update msg model =
 view : Model -> Html Msg
 view model =
     Html.div
-        []
+        [ Attr.class "race-details-page" ]
         [ viewBackButton model.year
         , Html.div
-            [ css
+            [ Attr.class "race-details-layout"
+            , css
                 [ displayFlex
                 , property "gap" "2rem"
                 , alignItems flexStart
@@ -186,7 +187,12 @@ view model =
 viewBackButton : Int -> Html msg
 viewBackButton year =
     Html.div
-        [ css [ marginBottom (rem 1.5) ]
+        [ Attr.class "race-details-back"
+        , css
+            [ marginBottom (rem 1.5)
+            , position relative
+            , zIndex (int 1)
+            ]
         ]
         [ Html.a
             [ Route.href (Route.RaceOverview year)
@@ -223,8 +229,10 @@ viewBackButton year =
 viewDriverList : RemoteData String DriverOrder -> Html msg
 viewDriverList driverOrderData =
     Html.div
-        [ css
-            [ width (px 320)
+        [ Attr.class "race-details-driverlist"
+        , css
+            [ width (pct 100)
+            , maxWidth (px 360)
             , flexShrink (int 0)
             ]
         ]
@@ -243,7 +251,8 @@ viewDriverList driverOrderData =
 viewDriverListContent : DriverOrder -> Html msg
 viewDriverListContent driverOrder =
     Html.div
-        [ css
+        [ Attr.class "race-details-driverlist__card"
+        , css
             [ backgroundColor (rgba 30 20 40 0.4)
             , property "backdrop-filter" "blur(10px)"
             , property "-webkit-backdrop-filter" "blur(10px)"
@@ -502,7 +511,8 @@ viewRaceDetails model =
             Html.div []
                 [ viewRaceHeader details
                 , Html.div
-                    [ css
+                    [ Attr.class "race-details-panels"
+                    , css
                         [ displayFlex
                         , property "gap" "1rem"
                         , alignItems flexStart
@@ -510,34 +520,38 @@ viewRaceDetails model =
                         ]
                     ]
                     [ Html.div
-                        [ css
+                        [ Attr.class "race-details-panel"
+                        , css
                             [ flex (int 1)
-                            , minWidth (px 300)
+                            , property "min-width" "min(300px, 100%)"
                             ]
                         ]
                         [ viewRaceHighlights model ]
                     , Html.div
-                        [ css
+                        [ Attr.class "race-details-panel"
+                        , css
                             [ flex (int 1)
-                            , minWidth (px 300)
+                            , property "min-width" "min(300px, 100%)"
                             , displayFlex
                             , flexDirection column
                             , property "gap" "1rem"
                             ]
                         ]
                         [ Html.div
-                            [ css
+                            [ Attr.class "race-details-panel"
+                            , css
                                 [ flex (int 1)
-                                , minWidth (px 250)
+                                , property "min-width" "min(250px, 100%)"
                                 ]
                             ]
                             [ viewRaceInfo details ]
                         , case details.weather of
                             Just weather ->
                                 Html.div
-                                    [ css
+                                    [ Attr.class "race-details-panel"
+                                    , css
                                         [ flex (int 1)
-                                        , minWidth (px 250)
+                                        , property "min-width" "min(250px, 100%)"
                                         ]
                                     ]
                                     [ viewWeatherCard weather ]
