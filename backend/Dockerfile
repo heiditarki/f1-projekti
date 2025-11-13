@@ -9,8 +9,6 @@ RUN apt-get update && \
     curl -fsSLO "https://github.com/aptible/supercronic/releases/download/${SUPERCRONIC_VERSION}/supercronic-linux-amd64" && \
     install -m 0755 supercronic-linux-amd64 /usr/local/bin/supercronic && \
     rm supercronic-linux-amd64 && \
-    apt-get purge -y curl && \
-    apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
