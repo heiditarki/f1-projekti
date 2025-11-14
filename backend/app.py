@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 
 from collections import OrderedDict
 from numbers import Number
@@ -10,6 +11,7 @@ import fastf1
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
+from fastf1.req import RateLimitExceededError
 
 # Enable cache
 cache_dir = "f1_cache"
@@ -54,9 +56,32 @@ _session_cache_lock = Lock()
 _session_cache: "OrderedDict[tuple[int, int], Any]" = OrderedDict()
 _session_load_locks: dict[tuple[int, int], Lock] = {}
 
+# Schedule cache to avoid hitting rate limits
+SCHEDULE_CACHE_TTL = int(os.getenv("SCHEDULE_CACHE_TTL", "3600"))  # 1 hour default
+_schedule_cache_lock = Lock()
+_schedule_cache: dict[int, tuple[Any, float]] = {}  # year -> (schedule, timestamp)
+
 
 def _normalize_cache_key(year: int, round_num: int) -> tuple[int, int]:
     return (int(year), int(round_num))
+
+
+def get_cached_schedule(year: int) -> Optional[Any]:
+    """Get schedule from cache if still valid, otherwise None."""
+    with _schedule_cache_lock:
+        if year in _schedule_cache:
+            schedule, timestamp = _schedule_cache[year]
+            if time.time() - timestamp < SCHEDULE_CACHE_TTL:
+                return schedule
+            # Expired, remove it
+            _schedule_cache.pop(year, None)
+    return None
+
+
+def store_schedule_in_cache(year: int, schedule: Any) -> None:
+    """Store schedule in cache with current timestamp."""
+    with _schedule_cache_lock:
+        _schedule_cache[year] = (schedule, time.time())
 
 
 def _store_session_in_cache(key: tuple[int, int], session: Any) -> Any:
@@ -295,21 +320,43 @@ def get_next_race():
     upstream_errors: list[str] = []
 
     for year in range(start_year, start_year + 2):
-        try:
-            schedule = fastf1.get_event_schedule(year)
+        # Try cache first
+        schedule = get_cached_schedule(year)
+        if schedule is not None:
             schedule_loaded = True
-        except ValueError as exc:
-            upstream_errors.append(f"{year}: {exc}")
-            logger.warning(
-                "Upstream schedule unavailable for %s: %s", year, exc, exc_info=exc
-            )
-            continue
-        except Exception as exc:
-            upstream_errors.append(f"{year}: {exc}")
-            logger.warning(
-                "Unexpected error loading schedule for %s", year, exc_info=exc
-            )
-            continue
+        else:
+            # Not in cache, fetch from FastF1
+            try:
+                schedule = fastf1.get_event_schedule(year)
+                schedule_loaded = True
+                # Store in cache for future requests
+                store_schedule_in_cache(year, schedule)
+            except RateLimitExceededError as exc:
+                # Rate limited - try cache one more time (might have been updated)
+                schedule = get_cached_schedule(year)
+                if schedule is not None:
+                    schedule_loaded = True
+                    logger.warning(
+                        "Rate limited, using cached schedule for %s", year
+                    )
+                else:
+                    upstream_errors.append(f"{year}: Rate limit exceeded")
+                    logger.warning(
+                        "Rate limit exceeded for %s and no cached data available", year
+                    )
+                    continue
+            except ValueError as exc:
+                upstream_errors.append(f"{year}: {exc}")
+                logger.warning(
+                    "Upstream schedule unavailable for %s: %s", year, exc, exc_info=exc
+                )
+                continue
+            except Exception as exc:
+                upstream_errors.append(f"{year}: {exc}")
+                logger.warning(
+                    "Unexpected error loading schedule for %s", year, exc_info=exc
+                )
+                continue
 
         if schedule is None:
             continue
@@ -379,8 +426,23 @@ def get_next_race():
 @app.get("/races/{year}")
 def get_races(year: int):
     """Get all races for a specific year"""
+    # Try cache first
+    schedule = get_cached_schedule(year)
+    if schedule is None:
+        try:
+            schedule = fastf1.get_event_schedule(year)
+            # Store in cache for future requests
+            store_schedule_in_cache(year, schedule)
+        except RateLimitExceededError:
+            # Rate limited - try cache one more time
+            schedule = get_cached_schedule(year)
+            if schedule is None:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Rate limit exceeded and no cached data available. Please try again later.",
+                )
+    
     try:
-        schedule = fastf1.get_event_schedule(year)
         races = []
 
         for _, row in schedule.iterrows():
