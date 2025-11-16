@@ -27,8 +27,8 @@ primary_region = "ams"
     interval = "15s"
     grace_period = "30s"
     method = "get"
-    path = "/next-race"
+    path = "/health"
     protocol = "http"
-    restart_limit = 2
-    timeout = "2s"
+    restart_limit = 3
+    timeout = "5s"
 

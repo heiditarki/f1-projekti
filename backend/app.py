@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
 from collections import OrderedDict
 from numbers import Number
@@ -61,6 +62,33 @@ SCHEDULE_CACHE_TTL = int(os.getenv("SCHEDULE_CACHE_TTL", "3600"))  # 1 hour defa
 _schedule_cache_lock = Lock()
 _schedule_cache: dict[int, tuple[Any, float]] = {}  # year -> (schedule, timestamp)
 
+# Timeout for FastF1 operations (30 seconds)
+FASTF1_TIMEOUT = int(os.getenv("FASTF1_TIMEOUT", "30"))
+
+# Thread pool for timeout handling
+_executor = ThreadPoolExecutor(max_workers=4)
+
+
+def run_with_timeout(func, timeout_seconds: int, *args, **kwargs):
+    """Run a function with a timeout."""
+    future = _executor.submit(func, *args, **kwargs)
+    try:
+        return future.result(timeout=timeout_seconds)
+    except FutureTimeoutError:
+        logger.warning(f"Operation timed out after {timeout_seconds} seconds")
+        raise TimeoutError(f"Operation timed out after {timeout_seconds} seconds")
+
+
+def cleanup_stale_locks():
+    """Remove locks that are no longer in use."""
+    with _session_cache_lock:
+        keys_to_remove = []
+        for key, lock in _session_load_locks.items():
+            if not lock.locked():
+                keys_to_remove.append(key)
+        for key in keys_to_remove:
+            _session_load_locks.pop(key, None)
+
 
 def _normalize_cache_key(year: int, round_num: int) -> tuple[int, int]:
     return (int(year), int(round_num))
@@ -120,13 +148,29 @@ def get_cached_session(year: int, round_num: int) -> Any:
                     _session_cache.move_to_end(key)
                     return cached
 
-            session = fastf1.get_session(year, round_num, "R")
-            session.load(
-                laps=True,
-                telemetry=False,
-                weather=True,
-                messages=False,
-            )
+            # Load session with timeout
+            def load_session():
+                session = fastf1.get_session(year, round_num, "R")
+                session.load(
+                    laps=True,
+                    telemetry=False,
+                    weather=True,
+                    messages=False,
+                )
+                return session
+            
+            try:
+                session = run_with_timeout(load_session, FASTF1_TIMEOUT)
+            except TimeoutError:
+                logger.error(f"Timeout loading session {year}-{round_num}")
+                raise HTTPException(
+                    status_code=504,
+                    detail=f"Timeout loading race session {year}-{round_num}. Please try again.",
+                )
+            
+            # Cleanup stale locks periodically
+            if len(_session_load_locks) > 20:
+                cleanup_stale_locks()
 
             with _session_cache_lock:
                 existing = _session_cache.get(key)
@@ -276,6 +320,12 @@ def to_optional_int(value: Any) -> Optional[int]:
     return None
 
 
+@app.get("/health")
+def health_check():
+    """Health check endpoint that's always fast - used by Fly.io health checks."""
+    return {"status": "ok", "timestamp": time.time()}
+
+
 def extract_event_details(event_row, fallback_year):
     round_number = to_optional_int(
         event_row.get("RoundNumber") if event_row is not None else None
@@ -327,10 +377,25 @@ def get_next_race():
         else:
             # Not in cache, fetch from FastF1
             try:
-                schedule = fastf1.get_event_schedule(year)
-                schedule_loaded = True
-                # Store in cache for future requests
-                store_schedule_in_cache(year, schedule)
+                def fetch_schedule():
+                    return fastf1.get_event_schedule(year)
+                
+                try:
+                    schedule = run_with_timeout(fetch_schedule, FASTF1_TIMEOUT)
+                except TimeoutError:
+                    logger.warning(f"Timeout fetching schedule for {year}")
+                    # Try cache one more time in case it was updated
+                    schedule = get_cached_schedule(year)
+                    if schedule is None:
+                        upstream_errors.append(f"{year}: Timeout fetching schedule")
+                        continue
+                    else:
+                        schedule_loaded = True
+                        logger.info(f"Using cached schedule for {year} after timeout")
+                else:
+                    schedule_loaded = True
+                    # Store in cache for future requests
+                    store_schedule_in_cache(year, schedule)
             except RateLimitExceededError as exc:
                 # Rate limited - try cache one more time (might have been updated)
                 schedule = get_cached_schedule(year)
@@ -430,9 +495,22 @@ def get_races(year: int):
     schedule = get_cached_schedule(year)
     if schedule is None:
         try:
-            schedule = fastf1.get_event_schedule(year)
-            # Store in cache for future requests
-            store_schedule_in_cache(year, schedule)
+            def fetch_schedule():
+                return fastf1.get_event_schedule(year)
+            
+            try:
+                schedule = run_with_timeout(fetch_schedule, FASTF1_TIMEOUT)
+            except TimeoutError:
+                # Try cache one more time
+                schedule = get_cached_schedule(year)
+                if schedule is None:
+                    raise HTTPException(
+                        status_code=504,
+                        detail="Timeout fetching schedule and no cached data available. Please try again later.",
+                    )
+            else:
+                # Store in cache for future requests
+                store_schedule_in_cache(year, schedule)
         except RateLimitExceededError:
             # Rate limited - try cache one more time
             schedule = get_cached_schedule(year)
@@ -485,7 +563,23 @@ def get_race_overview(year: int, round_num: int):
         event = getattr(session, "event", None)
 
         if event is None:
-            schedule = fastf1.get_event_schedule(year)
+            # Try cache first
+            schedule = get_cached_schedule(year)
+            if schedule is None:
+                try:
+                    def fetch_schedule():
+                        return fastf1.get_event_schedule(year)
+                    schedule = run_with_timeout(fetch_schedule, FASTF1_TIMEOUT)
+                    store_schedule_in_cache(year, schedule)
+                except (TimeoutError, RateLimitExceededError):
+                    # Fallback: try to get from cache or raise error
+                    schedule = get_cached_schedule(year)
+                    if schedule is None:
+                        raise HTTPException(
+                            status_code=503,
+                            detail="Unable to load schedule data. Please try again later.",
+                        )
+            
             matching_event = schedule[schedule["RoundNumber"] == round_num]
             if matching_event.empty:
                 raise HTTPException(status_code=404, detail="Race not found")
